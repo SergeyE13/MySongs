@@ -1,0 +1,510 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>🎸 Песенник — аккорды над текстом</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            background: #e9eef3;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .app { display: flex; height: 100%; width: 100%; position: relative; }
+        
+        .sidebar {
+            width: 280px;
+            background: #1e2a3e;
+            color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.25s ease;
+            z-index: 20;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+        }
+        .sidebar-header {
+            padding: 1.2rem 1rem;
+            background: #0f1724;
+            border-bottom: 1px solid #2d3e4f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .sidebar-header h2 { 
+            font-size: 1.4rem; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+        }
+        .converter-icon {
+            background: #2e7d64;
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 1.3rem;
+            cursor: pointer;
+            transition: 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .converter-icon:hover {
+            background: #236b55;
+            transform: scale(0.95);
+        }
+        .search-box {
+            padding: 12px 16px;
+            background: #15232e;
+            border-bottom: 1px solid #2c3e46;
+        }
+        .search-box input {
+            width: 100%; padding: 10px 14px; font-size: 1rem;
+            border: none; border-radius: 40px; background: #2c3e44;
+            color: white; outline: none;
+        }
+        .search-box input::placeholder { color: #9aaebf; }
+        .song-list-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+        .song-item {
+            padding: 12px 18px;
+            cursor: pointer;
+            border-left: 4px solid transparent;
+            transition: 0.1s;
+            font-weight: 500;
+        }
+        .song-item:hover { background: #2c3e50; }
+        .song-item.active {
+            background: #2c5a74;
+            border-left-color: #f1c40f;
+            font-weight: 600;
+        }
+        .song-title-small { font-size: 1rem; }
+        .song-artist-small { font-size: 0.7rem; color: #b0c4de; margin-top: 3px; }
+        
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fef9ef;
+            overflow: hidden;
+        }
+        .toolbar {
+            background: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            border-bottom: 1px solid #ddd;
+            flex-wrap: wrap;
+        }
+        .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .controls button {
+            background: #2c3e50; border: none; color: white;
+            padding: 8px 14px; font-size: 0.9rem; font-weight: 600;
+            border-radius: 40px; cursor: pointer;
+            transition: 0.1s;
+        }
+        .controls button:active { transform: scale(0.96); }
+        .transpose-value { background: #e2e6ea; padding: 6px 12px; border-radius: 30px; font-weight: bold; }
+        .menu-toggle {
+            display: none; background: #1e2a3e; border: none;
+            font-size: 1.8rem; padding: 6px 12px; border-radius: 12px;
+            cursor: pointer; color: white;
+            margin-right: auto;
+        }
+        .song-view {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem 2rem;
+        }
+        
+        /* АККОРДЫ — КРУПНЫЙ ШРИФТ */
+        .song-line {
+            margin-bottom: 0;
+            position: relative;
+        }
+        .chord-row {
+            font-family: 'Courier New', 'Fira Code', monospace;
+            font-weight: bold;
+            color: #b45309;
+            font-size: 1rem;
+            line-height: 1.3;
+            white-space: pre;
+            letter-spacing: normal;
+            margin-bottom: 0;
+            padding-bottom: 0;
+            height: 1.4em;
+        }
+        .lyric-row {
+            font-size: 1rem;
+            line-height: 1.35;
+            white-space: pre-wrap;
+            color: #2c3e50;
+            margin-top: 0;
+            padding-top: 0;
+        }
+        
+        .song-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+            color: #1f2d3a;
+            border-left: 4px solid #f1c40f;
+            padding-left: 14px;
+        }
+        .song-artist {
+            font-size: 0.9rem;
+            color: #5d6e7e;
+            margin-bottom: 1.5rem;
+            padding-left: 18px;
+        }
+        .no-song-msg { text-align: center; margin-top: 80px; color: #7f8c8d; }
+        .error-msg { background: #f9e6e6; padding: 20px; border-radius: 16px; margin: 20px; color: #c0392b; white-space: pre-wrap; }
+        
+        /* ТЕЛЕФОН — ЕЩЁ КРУПНЕЕ АККОРДЫ */
+        @media (max-width: 720px) {
+            .sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 100%;
+                transform: translateX(-100%);
+            }
+            .sidebar.open { transform: translateX(0); }
+            .menu-toggle { display: inline-block; }
+            .song-view { padding: 1rem; }
+            .chord-row { 
+                font-size: 1rem; 
+                line-height: 1.35;
+                height: 1.5em;
+            }
+            .lyric-row { 
+                font-size: 1rem; 
+                line-height: 1.4;
+            }
+            .song-title { font-size: 1.3rem; }
+            .toolbar { justify-content: flex-start; }
+        }
+        
+        /* ОЧЕНЬ КРУПНО ДЛЯ ПОЖИЛЫХ/ПЛОХОЕ ЗРЕНИЕ — опционально */
+        @media (max-width: 480px) {
+            .chord-row { 
+                font-size: 1.1rem; 
+            }
+            .lyric-row { 
+                font-size: 1.05rem; 
+            }
+        }
+        
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 15;
+        }
+        .overlay.active { display: block; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="overlay" id="overlay"></div>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>🎸 Песенник</h2>
+            <button id="converterIconBtn" class="converter-icon" title="Конвертер старых песен">🔄</button>
+        </div>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="🔍 Поиск песен..." autocomplete="off">
+        </div>
+        <div class="song-list-container" id="songListContainer">
+            <div style="padding:20px; text-align:center;">Загрузка...</div>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="toolbar">
+            <button class="menu-toggle" id="menuToggleBtn">☰</button>
+            <div class="controls">
+                <button id="transposeDownBtn">♭ -1</button>
+                <span class="transpose-value" id="transposeAmount">0</span>
+                <button id="transposeUpBtn">♯ +1</button>
+                <button id="resetTransposeBtn" style="background:#6c757d;">⟳ Сброс</button>
+            </div>
+        </div>
+        <div class="song-view" id="songView">
+            <div class="no-song-msg">
+                🎵 Выберите песню из списка
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let songsList = [];
+    let currentSongId = null;
+    let currentRawOriginal = "";
+    let transposeShift = 0;
+
+    function formatSongWithChordsFixed(rawText) {
+        const lines = rawText.split(/\r?\n/);
+        let resultHtml = '';
+        
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i];
+            
+            if (line.trim() === '') {
+                resultHtml += '<div style="height: 0.6rem;"></div>';
+                continue;
+            }
+            
+            const chordPattern = /\[([^\]]+)\]/g;
+            let hasChords = chordPattern.test(line);
+            chordPattern.lastIndex = 0;
+            
+            if (hasChords) {
+                let chords = [];
+                let match;
+                while ((match = chordPattern.exec(line)) !== null) {
+                    chords.push({
+                        chord: match[1],
+                        start: match.index,
+                        end: match.index + match[0].length
+                    });
+                }
+                
+                let cleanLine = line.replace(chordPattern, '');
+                let chordPlacements = [];
+                
+                for (let chord of chords) {
+                    let tempRaw = 0;
+                    let tempClean = 0;
+                    while (tempRaw < chord.start && tempRaw < line.length) {
+                        if (line[tempRaw] !== '[' && line[tempRaw] !== ']') {
+                            tempClean++;
+                        }
+                        tempRaw++;
+                    }
+                    chordPlacements.push({
+                        chord: chord.chord,
+                        pos: tempClean
+                    });
+                }
+                
+                let chordLineArray = new Array(cleanLine.length).fill(' ');
+                for (let cp of chordPlacements) {
+                    let pos = cp.pos;
+                    let chordText = cp.chord;
+                    for (let j = 0; j < chordText.length && pos + j < chordLineArray.length; j++) {
+                        chordLineArray[pos + j] = chordText[j];
+                    }
+                }
+                
+                let chordLine = chordLineArray.join('').trimEnd();
+                let lyricLine = cleanLine;
+                
+                resultHtml += `<div class="song-line">`;
+                if (chordLine.trim() !== '') {
+                    resultHtml += `<div class="chord-row">${escapeHtml(chordLine)}</div>`;
+                }
+                resultHtml += `<div class="lyric-row">${escapeHtml(lyricLine)}</div>`;
+                resultHtml += `</div>`;
+            } 
+            else {
+                resultHtml += `<div class="song-line">`;
+                resultHtml += `<div class="lyric-row">${escapeHtml(line)}</div>`;
+                resultHtml += `</div>`;
+            }
+        }
+        
+        return resultHtml;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    function transposeChordInString(text, semitones) {
+        const chordRegex = /\[([A-G][#b]?(?:m|maj|min|dim|aug|sus\d*)?)\]/gi;
+        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        
+        function transposeChord(chordRaw) {
+            let root = chordRaw.match(/[A-G][#b]?/i);
+            if (!root) return chordRaw;
+            let rootNote = root[0];
+            let suffix = chordRaw.slice(rootNote.length);
+            let index = notes.findIndex(n => n.toLowerCase() === rootNote.toLowerCase());
+            if (index === -1) return chordRaw;
+            let newIndex = (index + semitones + 12) % 12;
+            let newRoot = notes[newIndex];
+            return newRoot + suffix;
+        }
+        
+        return text.replace(chordRegex, (match, chordInside) => `[${transposeChord(chordInside)}]`);
+    }
+
+    function updateSongDisplay() {
+        if (!currentSongId || !currentRawOriginal) {
+            document.getElementById('songView').innerHTML = '<div class="no-song-msg">🎵 Выберите песню из списка</div>';
+            return;
+        }
+        
+        let transposedRaw = currentRawOriginal;
+        if (transposeShift !== 0) {
+            transposedRaw = transposeChordInString(currentRawOriginal, transposeShift);
+        }
+        
+        const song = songsList.find(s => s.id === currentSongId);
+        if (!song) return;
+        
+        const formattedHtml = formatSongWithChordsFixed(transposedRaw);
+        const titleHtml = `<div class="song-title">${escapeHtml(song.title)}</div>
+                           <div class="song-artist">${escapeHtml(song.artist)}</div>`;
+        document.getElementById('songView').innerHTML = titleHtml + formattedHtml;
+        document.getElementById('transposeAmount').innerText = transposeShift;
+    }
+
+    async function loadSongById(id) {
+        const song = songsList.find(s => s.id === id);
+        if (!song) return;
+        try {
+            const response = await fetch(`songs/${encodeURIComponent(song.fileName)}`);
+            if (!response.ok) throw new Error(`Файл ${song.fileName} не найден`);
+            currentRawOriginal = await response.text();
+            currentSongId = id;
+            transposeShift = 0;
+            updateSongDisplay();
+            
+            document.querySelectorAll('.song-item').forEach(el => {
+                if (el.dataset.id === id) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+            if (window.innerWidth <= 720) closeSidebar();
+        } catch(e) {
+            document.getElementById('songView').innerHTML = `<div class="error-msg">❌ Ошибка: ${e.message}<br><br>Проверьте, что файл <strong>songs/${song.fileName}</strong> существует</div>`;
+        }
+    }
+
+    function parseCSV(csvText) {
+        const lines = csvText.split(/\r?\n/);
+        if (lines.length < 2) return [];
+        const result = [];
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line === "") continue;
+            const parts = line.split(',');
+            if (parts.length >= 3) {
+                let title = parts[0].trim();
+                let artist = parts[1].trim();
+                let fileName = parts[2].trim();
+                title = title.replace(/^["']|["']$/g, '');
+                artist = artist.replace(/^["']|["']$/g, '');
+                fileName = fileName.replace(/^["']|["']$/g, '');
+                if (title && fileName) {
+                    result.push({ title, artist, fileName });
+                }
+            }
+        }
+        return result;
+    }
+
+    async function loadSongsFromCSV() {
+        try {
+            const response = await fetch('songs/songs.csv');
+            if (!response.ok) {
+                throw new Error(`Файл songs/songs.csv не найден`);
+            }
+            const csvText = await response.text();
+            const songs = parseCSV(csvText);
+            if (songs.length === 0) {
+                document.getElementById('songListContainer').innerHTML = `
+                    <div style="padding:20px;color:#e74c3c;">
+                        ⚠️ В файле songs.csv нет данных
+                    </div>
+                `;
+                return;
+            }
+            songsList = songs.map((song, idx) => ({
+                id: `song_${idx}`,
+                title: song.title,
+                artist: song.artist || "Неизвестен",
+                fileName: song.fileName
+            }));
+            renderSongList();
+            if (songsList.length > 0) loadSongById(songsList[0].id);
+        } catch(e) {
+            document.getElementById('songListContainer').innerHTML = `
+                <div style="padding:20px;color:#e74c3c;">
+                    ❌ Файл songs/songs.csv не найден<br>
+                    Создайте его в папке songs/
+                </div>
+            `;
+        }
+    }
+
+    function renderSongList(filterText = "") {
+        const container = document.getElementById('songListContainer');
+        const filtered = songsList.filter(song => 
+            song.title.toLowerCase().includes(filterText.toLowerCase()) || 
+            song.artist.toLowerCase().includes(filterText.toLowerCase())
+        );
+        if (filtered.length === 0) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;">🎵 Нет песен</div>';
+            return;
+        }
+        container.innerHTML = "";
+        filtered.forEach(song => {
+            const div = document.createElement('div');
+            div.className = 'song-item';
+            if (currentSongId === song.id) div.classList.add('active');
+            div.dataset.id = song.id;
+            div.innerHTML = `<div class="song-title-small">${escapeHtml(song.title)}</div>
+                             <div class="song-artist-small">${escapeHtml(song.artist)}</div>`;
+            div.addEventListener('click', () => loadSongById(song.id));
+            container.appendChild(div);
+        });
+    }
+
+    function openSidebar() { 
+        document.getElementById('sidebar').classList.add('open'); 
+        document.getElementById('overlay').classList.add('active'); 
+    }
+    function closeSidebar() { 
+        document.getElementById('sidebar').classList.remove('open'); 
+        document.getElementById('overlay').classList.remove('active'); 
+    }
+
+    function openConverter() {
+        window.open('converter.html', '_blank');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSongsFromCSV();
+        
+        document.getElementById('searchInput').addEventListener('input', (e) => renderSongList(e.target.value));
+        document.getElementById('transposeUpBtn').addEventListener('click', () => { if (currentSongId) { transposeShift++; updateSongDisplay(); } });
+        document.getElementById('transposeDownBtn').addEventListener('click', () => { if (currentSongId) { transposeShift--; updateSongDisplay(); } });
+        document.getElementById('resetTransposeBtn').addEventListener('click', () => { if (currentSongId) { transposeShift = 0; updateSongDisplay(); } });
+        document.getElementById('menuToggleBtn').addEventListener('click', openSidebar);
+        document.getElementById('overlay').addEventListener('click', closeSidebar);
+        document.getElementById('converterIconBtn').addEventListener('click', openConverter);
+        window.addEventListener('resize', () => { if (window.innerWidth > 720) closeSidebar(); });
+    });
+</script>
+</body>
+</html>

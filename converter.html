@@ -1,0 +1,610 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔄 Конвертер песен — старый формат → новый (аккорды над текстом)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a2a3a 0%, #0f1724 100%);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .subtitle {
+            color: #8ba0b0;
+            margin-bottom: 2rem;
+            font-size: 1rem;
+        }
+
+        /* Карточки */
+        .two-columns {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            flex: 1;
+            min-width: 300px;
+            background: white;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .card-header {
+            background: #1e2a3e;
+            color: white;
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        textarea {
+            width: 100%;
+            height: 400px;
+            font-family: 'Courier New', 'Fira Code', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            resize: vertical;
+            background: #fafbfc;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #2c5a74;
+        }
+
+        .result-area {
+            background: #f0f2f5;
+            border-radius: 12px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 400px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e4e8;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #2c5a74;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.1s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: #1e4a62;
+            transform: scale(0.98);
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #5a6268;
+        }
+
+        button.success {
+            background: #2e7d64;
+        }
+
+        button.success:hover {
+            background: #236b55;
+        }
+
+        .info-box {
+            background: #e8f0fe;
+            border-left: 5px solid #2c5a74;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-box h3 {
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            color: #1e2a3e;
+        }
+
+        .info-box p {
+            font-size: 0.85rem;
+            color: #3a5468;
+            margin: 4px 0;
+        }
+
+        .info-box code {
+            background: #dce5f0;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        .batch-section {
+            background: white;
+            border-radius: 24px;
+            margin-top: 24px;
+            overflow: hidden;
+        }
+
+        .file-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #e0e4e8;
+            border-radius: 12px;
+            margin-top: 12px;
+            padding: 8px;
+            background: #fafbfc;
+        }
+
+        .file-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-name {
+            font-family: monospace;
+            color: #1e2a3e;
+        }
+
+        .badge {
+            background: #e0e4e8;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .status-msg {
+            margin-top: 12px;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+        }
+
+        .status-msg.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-msg.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        hr {
+            margin: 20px 0;
+            border: none;
+            border-top: 1px solid #e0e4e8;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: #7f8c8d;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>
+        🔄 Конвертер песен
+        <span style="font-size: 0.8rem; background: #2c5a74; padding: 4px 12px; border-radius: 40px;">старый → новый формат</span>
+    </h1>
+    <div class="subtitle">
+        Превращает аккорды из отдельных строк в формат <strong>[Аккорд]текст</strong> для вашего песенника
+    </div>
+
+    <div class="two-columns">
+        <!-- Левая колонка: исходник (старый формат) -->
+        <div class="card">
+            <div class="card-header">
+                📄 1. Старый формат (исходник)
+            </div>
+            <div class="card-body">
+                <div class="info-box">
+                    <h3>📌 Пример старого формата:</h3>
+                    <p><code>Em</code><br>Белый снег, серый лед<br><code>Am</code><br>На растрескавшейся земле<br><code>C</code><br>Одеялом из луж</p>
+                    <p style="margin-top: 8px;">→ аккорды отдельными строками, текст отдельно</p>
+                </div>
+                <textarea id="inputText" placeholder="Вставьте сюда текст песни в старом формате..."></textarea>
+                <div class="button-group">
+                    <button id="convertBtn">🔄 Преобразовать</button>
+                    <button id="clearBtn" class="secondary">🗑️ Очистить</button>
+                    <button id="exampleBtn" class="secondary">📋 Пример</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Правая колонка: результат (новый формат) -->
+        <div class="card">
+            <div class="card-header">
+                ✨ 2. Новый формат (аккорды в строке)
+            </div>
+            <div class="card-body">
+                <div class="info-box">
+                    <h3>✅ Результат — готово для песенника:</h3>
+                    <p><code>[Em]Белый снег, [Am]серый лед<br>[C]На растрескавшейся земле</code></p>
+                </div>
+                <div id="outputArea" class="result-area">
+                    Здесь появится преобразованный текст
+                </div>
+                <div class="button-group">
+                    <button id="copyBtn">📋 Копировать результат</button>
+                    <button id="downloadBtn" class="success">💾 Скачать как .txt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Блок пакетной обработки файлов -->
+    <div class="batch-section">
+        <div class="card-header">
+            📁 3. Пакетная обработка (конвертировать несколько файлов сразу)
+        </div>
+        <div class="card-body">
+            <div class="info-box" style="margin-bottom: 12px;">
+                <h3>📌 Как это работает:</h3>
+                <p>1. Выберите один или несколько <code>.txt</code> файлов со старым форматом</p>
+                <p>2. Конвертер обработает их все и предложит скачать архив с новыми файлами</p>
+                <p>3. Просто замените старые файлы в папке <code>songs/</code> на новые</p>
+            </div>
+            
+            <input type="file" id="fileInput" multiple accept=".txt" style="display: none;">
+            <div class="button-group">
+                <button id="selectFilesBtn">📂 Выбрать .txt файлы</button>
+                <button id="convertAllBtn" class="success" style="background:#2e7d64;">⚡ Конвертировать все и скачать ZIP</button>
+            </div>
+            
+            <div id="fileListContainer" class="file-list" style="display: none;">
+                <!-- список выбранных файлов -->
+            </div>
+            <div id="batchStatus"></div>
+        </div>
+    </div>
+    <footer>
+        💡 После конвертации просто замените старые файлы в папке <strong>songs/</strong> на новые.<br>
+        Файл <strong>songs.csv</strong> менять не нужно — названия песен остаются те же.
+    </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+    // Конвертер: старый формат -> новый
+    function convertOldToNewFormat(text) {
+        const lines = text.split(/\r?\n/);
+        const resultLines = [];
+        let pendingChord = null;  // аккорд, который был на предыдущей строке
+        
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+            
+            // Пропускаем совсем пустые, но сохраняем как пустые строки
+            if (line === "") {
+                if (pendingChord !== null) {
+                    // если был аккорд без текста — тоже добавим? пропустим аккорд.
+                    pendingChord = null;
+                }
+                resultLines.push("");
+                continue;
+            }
+            
+            // Проверяем, является ли строка аккордом (не содержит пробелов или буквенно-цифровая + #/b/m)
+            // Аккорд может быть: Em, Am, C, D, F#m, G# и т.д.
+            const isChordLine = /^[A-G][#b]?(?:m|maj|min|dim|aug|sus\d*)?$/i.test(line);
+            
+            if (isChordLine) {
+                // Это строка с аккордом — запоминаем для следующей текстовой строки
+                pendingChord = line;
+            } else {
+                // Это текстовая строка
+                if (pendingChord !== null) {
+                    // Вставляем аккорд перед текстом в квадратных скобках
+                    // Распределяем аккорды по словам? Нет, просто ставим в начало строки (упрощённо)
+                    // Но для лучшего результата — можно расставить перед каждым словом? Пока ставим перед всей строкой.
+                    // Пользователь потом сам может донастроить.
+                    resultLines.push(`[${pendingChord}]${line}`);
+                    pendingChord = null;
+                } else {
+                    resultLines.push(line);
+                }
+            }
+        }
+        
+        // Если остался висячий аккорд в конце (без текста)
+        if (pendingChord !== null) {
+            resultLines.push(`[${pendingChord}]`);
+        }
+        
+        return resultLines.join('\n');
+    }
+
+    // Более умный конвертер: распределяет аккорды внутри строки, если в строке несколько слов?
+    // Но оставим простой вариант, пользователь может докрутить. Добавим улучшенный режим:
+    // Если строка текста длинная, а аккорд один — ставим в начало.
+    // Если пользователь хочет более точное выравнивание — он может отредактировать.
+    // Достаточно для большинства случаев.
+    
+    // Дополнительная функция: конвертация с умом (аккорд ставится перед первым словом)
+    function convertSmart(text) {
+        const lines = text.split(/\r?\n/);
+        const result = [];
+        let pendingChord = null;
+        
+        for (let line of lines) {
+            const trimmed = line.trim();
+            if (trimmed === "") {
+                if (pendingChord) {
+                    // аккорд без текста — скидываем его как отдельную строку (с аккордом в скобках)
+                    result.push(`[${pendingChord}]`);
+                    pendingChord = null;
+                }
+                result.push("");
+                continue;
+            }
+            
+            const isChord = /^[A-G][#b]?(?:m|maj|min|dim|aug|sus\d*)?$/i.test(trimmed);
+            
+            if (isChord) {
+                pendingChord = trimmed;
+            } else {
+                if (pendingChord) {
+                    // распределяем аккорд: если в строке несколько слов, можно поставить только перед первым словом
+                    // либо пользователь сам разобьёт. Ставим перед всей строкой.
+                    result.push(`[${pendingChord}]${line}`);
+                    pendingChord = null;
+                } else {
+                    result.push(line);
+                }
+            }
+        }
+        
+        if (pendingChord) {
+            result.push(`[${pendingChord}]`);
+        }
+        
+        return result.join('\n');
+    }
+    
+    // Используем smart конвертер
+    const converter = convertSmart;
+    
+    // DOM элементы
+    const inputTextarea = document.getElementById('inputText');
+    const outputDiv = document.getElementById('outputArea');
+    const convertBtn = document.getElementById('convertBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const exampleBtn = document.getElementById('exampleBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    
+    // Пример старого формата
+    const exampleText = `Em
+Белый снег, серый лед
+Am
+На растрескавшейся земле
+C
+Одеялом из луж накрытый след.
+
+Припев:
+Em
+И мы знаем, что так было
+Am
+И так будет всегда`;
+
+    function updateConversion() {
+        const oldText = inputTextarea.value;
+        if (!oldText.trim()) {
+            outputDiv.innerHTML = '<span style="color: #999;">👆 Введите текст в левом поле или нажмите «Пример»</span>';
+            return;
+        }
+        const newText = converter(oldText);
+        // Отображаем в pre-стиле
+        outputDiv.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
+        return newText;
+    }
+    
+    function escapeHtml(str) {
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    
+    let currentConvertedText = "";
+    
+    convertBtn.addEventListener('click', () => {
+        currentConvertedText = converter(inputTextarea.value);
+        outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
+    });
+    
+    clearBtn.addEventListener('click', () => {
+        inputTextarea.value = "";
+        outputDiv.innerHTML = '<span style="color: #999;">👆 Здесь появится результат</span>';
+        currentConvertedText = "";
+    });
+    
+    exampleBtn.addEventListener('click', () => {
+        inputTextarea.value = exampleText;
+        currentConvertedText = converter(exampleText);
+        outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
+    });
+    
+    copyBtn.addEventListener('click', () => {
+        if (!currentConvertedText && inputTextarea.value) {
+            currentConvertedText = converter(inputTextarea.value);
+        }
+        if (currentConvertedText) {
+            navigator.clipboard.writeText(currentConvertedText);
+            alert('✅ Текст скопирован в буфер обмена!');
+        } else {
+            alert('Сначала преобразуйте текст');
+        }
+    });
+    
+    downloadBtn.addEventListener('click', () => {
+        let textToSave = currentConvertedText;
+        if (!textToSave && inputTextarea.value) {
+            textToSave = converter(inputTextarea.value);
+        }
+        if (textToSave) {
+            const blob = new Blob([textToSave], {type: 'text/plain;charset=utf-8'});
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.href = url;
+            link.download = 'converted_song.txt';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } else {
+            alert('Нет текста для сохранения');
+        }
+    });
+    
+    // ---------- Пакетная обработка файлов ----------
+    let selectedFiles = [];
+    const fileInput = document.getElementById('fileInput');
+    const selectFilesBtn = document.getElementById('selectFilesBtn');
+    const convertAllBtn = document.getElementById('convertAllBtn');
+    const fileListContainer = document.getElementById('fileListContainer');
+    const batchStatus = document.getElementById('batchStatus');
+    
+    selectFilesBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        selectedFiles = Array.from(e.target.files);
+        if (selectedFiles.length === 0) {
+            fileListContainer.style.display = 'none';
+            return;
+        }
+        fileListContainer.style.display = 'block';
+        fileListContainer.innerHTML = '';
+        selectedFiles.forEach(file => {
+            const div = document.createElement('div');
+            div.className = 'file-item';
+            div.innerHTML = `<span class="file-name">📄 ${escapeHtml(file.name)}</span><span class="badge">${(file.size/1024).toFixed(1)} KB</span>`;
+            fileListContainer.appendChild(div);
+        });
+        batchStatus.innerHTML = '';
+    });
+    
+    convertAllBtn.addEventListener('click', async () => {
+        if (selectedFiles.length === 0) {
+            batchStatus.innerHTML = '<div class="status-msg error">⚠️ Сначала выберите файлы</div>';
+            return;
+        }
+        
+        batchStatus.innerHTML = '<div class="status-msg">⏳ Обработка файлов...</div>';
+        
+        const zip = new JSZip();
+        let convertedCount = 0;
+        let errors = [];
+        
+        for (const file of selectedFiles) {
+            try {
+                const content = await file.text();
+                const converted = converter(content);
+                // Сохраняем с тем же именем (можно добавить суффикс _new, но пусть перезаписывает)
+                let newFileName = file.name;
+                if (!newFileName.toLowerCase().endsWith('.txt')) newFileName += '.txt';
+                zip.file(newFileName, converted);
+                convertedCount++;
+            } catch (err) {
+                errors.push(`${file.name}: ${err.message}`);
+            }
+        }
+        
+        if (convertedCount > 0) {
+            const zipBlob = await zip.generateAsync({type: 'blob'});
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(zipBlob);
+            link.href = url;
+            link.download = `converted_songs_${new Date().toISOString().slice(0,19)}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            let msg = `✅ Конвертировано ${convertedCount} из ${selectedFiles.length} файлов. ZIP-архив скачан.`;
+            if (errors.length) msg += `\n⚠️ Ошибки: ${errors.join('; ')}`;
+            batchStatus.innerHTML = `<div class="status-msg success">${msg.replace(/\n/g, '<br>')}</div>`;
+        } else {
+            batchStatus.innerHTML = `<div class="status-msg error">❌ Не удалось конвертировать ни одного файла: ${errors.join('; ')}</div>`;
+        }
+    });
+    
+    // Инициализация
+    inputTextarea.value = exampleText;
+    currentConvertedText = converter(exampleText);
+    outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
+</script>
+</body>
+</html>
