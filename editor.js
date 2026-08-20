@@ -1,6 +1,6 @@
 ﻿// ====== НАСТРОЙКИ РЕДАКТОРА ======
 // ВСТАВЬТЕ СЮДА НОВЫЙ ТОКЕН!
-const GITHUB_TOKEN = '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';
+const GITHUB_TOKEN = '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';
 
 const REPO_OWNER = 'SergeyE13';
 const REPO_NAME = 'MySongs';
