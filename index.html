@@ -1171,5 +1171,31 @@ function closeEditor() {
 console.log('📝 Редактор песен загружен!');
 console.log('🔑 Двойной тап по заголовку для входа');
 </script>
+
+// ====== АКТИВАЦИЯ АДМИНКИ ДВОЙНЫМ ТАПОМ ======
+document.querySelector('.sidebar-header h2').addEventListener('dblclick', function(e) {
+    console.log('🔄 Двойной тап!');
+    document.getElementById('adminPasswordOverlay').style.display = 'flex';
+});
+
+// Для телефона: если двойной тап не работает, добавьте кнопку входа
+// Просто тапните по заголовку 3 раза подряд
+let tapCount = 0;
+let tapTimer = null;
+
+document.querySelector('.sidebar-header h2').addEventListener('click', function(e) {
+    tapCount++;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { tapCount = 0; }, 500);
+    
+    if (tapCount >= 3) {
+        tapCount = 0;
+        console.log('🔑 Тройной тап! Вход в админку');
+        document.getElementById('adminPasswordOverlay').style.display = 'flex';
+    }
+});
+
+console.log('✅ Редактор активен!');
+console.log('📝 Чтобы войти: сделайте 3 быстрых тапа по заголовку "🎸 Песенник"');
 </body>
 </html>
