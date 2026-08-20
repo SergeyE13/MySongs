@@ -1,5 +1,7 @@
 ﻿// ====== НАСТРОЙКИ РЕДАКТОРА ======
+// ВСТАВЬТЕ СЮДА НОВЫЙ ТОКЕН!
 const GITHUB_TOKEN = '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';
+
 const REPO_OWNER = 'SergeyE13';
 const REPO_NAME = 'MySongs';
 const BRANCH = 'main';
@@ -8,6 +10,9 @@ const ADMIN_PASSWORD = '13579';
 let isAdmin = false;
 let editingSongId = null;
 let editingFileName = null;
+
+console.log('🔐 Токен установлен:', GITHUB_TOKEN ? '✅ Да' : '❌ Нет');
+console.log(`📂 Репозиторий: ${REPO_OWNER}/${REPO_NAME}`);
 
 // ====== КНОПКА ВХОДА В АДМИНКУ ======
 function addAdminButton() {
@@ -67,27 +72,21 @@ function enterAdminMode() {
     btn.textContent = '🔓 Админ';
     btn.classList.add('active');
     btn.onclick = exitAdminMode;
-    
     showEditControls();
-    
     alert('✅ Режим редактирования включен!');
     console.log('✅ Режим администратора активирован');
 }
 
 function exitAdminMode() {
     isAdmin = false;
-    
     const btn = document.getElementById('adminToggleBtn');
     btn.textContent = '🔐 Админка';
     btn.classList.remove('active');
     btn.onclick = toggleLogin;
-    
     const editBtn = document.getElementById('editCurrentSongBtn');
     if (editBtn) editBtn.remove();
-    
     const addBtn = document.querySelector('.add-song-btn');
     if (addBtn) addBtn.remove();
-    
     closeEditor();
     console.log('🔒 Режим администратора выключен');
 }
@@ -101,12 +100,14 @@ function showEditControls() {
     const editBtn = document.createElement('button');
     editBtn.id = 'editCurrentSongBtn';
     editBtn.textContent = '✏️ Редактировать';
+    editBtn.style.cssText = 'background:#f39c12;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
     editBtn.onclick = editCurrentSong;
     toolbar.appendChild(editBtn);
     
     const addBtn = document.createElement('button');
     addBtn.textContent = '+ Новая';
     addBtn.className = 'add-song-btn';
+    addBtn.style.cssText = 'background:#27ae60;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
     addBtn.onclick = createNewSong;
     toolbar.appendChild(addBtn);
 }
@@ -133,12 +134,10 @@ async function openEditor(song) {
     try {
         const response = await fetch(`songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`);
         const text = await response.text();
-        
         document.getElementById('editSongTitle').textContent = `✏️ ${song.title}`;
         document.getElementById('editTextarea').value = text;
         document.getElementById('adminPanel').classList.add('active');
         document.body.style.overflow = 'hidden';
-        
         setTimeout(() => {
             document.getElementById('editTextarea').focus();
         }, 300);
@@ -148,7 +147,7 @@ async function openEditor(song) {
     }
 }
 
-// ====== СОХРАНИТЬ ПЕСНЮ ======
+// ====== СОХРАНИТЬ ПЕСНЮ (исправленная версия) ======
 async function saveEditedSong() {
     if (!editingFileName) return;
     
@@ -157,15 +156,24 @@ async function saveEditedSong() {
         if (!confirm('⚠️ Текст пустой! Сохранить пустую песню?')) return;
     }
     
+    // Проверяем токен перед сохранением
+    if (!GITHUB_TOKEN || GITHUB_TOKEN.length < 10) {
+        alert('❌ Токен не настроен! Проверьте GITHUB_TOKEN в editor.js');
+        return;
+    }
+    
     try {
         const encodedFileName = encodeURIComponent(editingFileName);
         const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/songs/${encodedFileName}`;
         
         console.log('🔍 Сохраняем:', apiUrl);
+        console.log('🔑 Токен начинается с:', GITHUB_TOKEN.substring(0, 10) + '...');
         
+        // Получаем SHA файла
         let sha = null;
         try {
             const shaResponse = await fetch(apiUrl, {
+                method: 'GET',
                 headers: {
                     'Authorization': `token ${GITHUB_TOKEN}`,
                     'Accept': 'application/vnd.github.v3+json'
@@ -174,7 +182,9 @@ async function saveEditedSong() {
             if (shaResponse.ok) {
                 const data = await shaResponse.json();
                 sha = data.sha;
-                console.log('📄 SHA найден');
+                console.log('📄 SHA найден:', sha);
+            } else {
+                console.log('📄 Файл не найден, статус:', shaResponse.status);
             }
         } catch (e) {
             console.log('📄 Файл не найден, создаём новый');
@@ -197,13 +207,16 @@ async function saveEditedSong() {
             })
         });
         
+        console.log('📊 Статус ответа:', response.status);
+        
         if (!response.ok) {
             const error = await response.json();
-            console.error('❌ Ошибка API:', error);
+            console.error('❌ Полная ошибка API:', error);
             throw new Error(error.message || 'Ошибка сохранения');
         }
         
-        console.log('✅ Сохранено!');
+        const result = await response.json();
+        console.log('✅ Сохранено!', result);
         alert('✅ Песня сохранена!');
         closeEditor();
         await loadSongById(editingSongId, true, true);
