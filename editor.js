@@ -93,7 +93,7 @@ function toggleEditor() {
         document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
         document.getElementById('editorToggleBtn').style.background = '#f39c12';
         hideEditorUI();
-        closeEditorPanel();
+        closeEditor(); // <-- ИСПРАВЛЕНО: теперь вызывается closeEditor()
     }
 }
 
@@ -269,7 +269,7 @@ function saveEditedSong() {
     }
     
     alert('✅ Правки сохранены!');
-    closeEditorPanel();
+    closeEditor(); // <-- ИСПРАВЛЕНО: теперь вызывается closeEditor()
     console.log('✅ saveEditedSong() завершена');
     console.log('========================================');
 }
@@ -346,14 +346,24 @@ function resetCurrentSong() {
     }
 }
 
-// ====== ЗАКРЫТЬ ПАНЕЛЬ РЕДАКТОРА ======
-function closeEditorPanel() {
-    console.log('🔒 closeEditorPanel() вызвана');
-    document.getElementById('adminPanel').classList.remove('active');
+// ====== ЗАКРЫТЬ ПАНЕЛЬ РЕДАКТОРА (ОСНОВНАЯ ФУНКЦИЯ) ======
+function closeEditor() {
+    console.log('🔒 closeEditor() вызвана');
+    const panel = document.getElementById('adminPanel');
+    if (panel) {
+        panel.classList.remove('active');
+    }
     document.body.style.overflow = 'auto';
     editingSongId = null;
     editingFileName = null;
     console.log('📌 editingSongId сброшен в null');
+}
+
+// ====== АЛИАС ДЛЯ СОВМЕСТИМОСТИ ======
+// Если в HTML используется closeEditorPanel, то она будет работать
+function closeEditorPanel() {
+    console.log('🔒 closeEditorPanel() вызвана (алиас)');
+    closeEditor();
 }
 
 // ====== ПЕРЕХВАТЫВАЕМ ЗАГРУЗКУ ПЕСЕН (сохраняем оригиналы) ======
