@@ -27,6 +27,18 @@
             margin-bottom: 2rem;
             font-size: 1rem;
         }
+        .debug-toggle {
+            background: #e67e22;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            margin-left: 12px;
+        }
+        .debug-toggle:hover { background: #d35400; }
+        .debug-toggle.active { background: #27ae60; }
         .two-columns {
             display: flex;
             gap: 24px;
@@ -58,8 +70,8 @@
             width: 100%;
             height: 400px;
             font-family: 'Courier New', 'Fira Code', monospace;
-            font-size: 13px;
-            line-height: 1.5;
+            font-size: 14px;
+            line-height: 1.6;
             padding: 12px;
             border: 2px solid #ddd;
             border-radius: 12px;
@@ -71,18 +83,21 @@
             border-color: #2c5a74;
         }
         .result-area {
-            background: #f0f2f5;
-            border-radius: 12px;
+            width: 100%;
+            height: 400px;
+            font-family: 'Courier New', 'Fira Code', monospace;
+            font-size: 14px;
+            line-height: 1.6;
             padding: 12px;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            word-break: break-word;
-            min-height: 400px;
-            max-height: 400px;
-            overflow-y: auto;
-            border: 2px solid #e0e4e8;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            resize: vertical;
+            background: #fafbfc;
+            color: #1e2a3e;
+        }
+        .result-area:focus {
+            outline: none;
+            border-color: #2c5a74;
         }
         .button-group {
             display: flex;
@@ -94,9 +109,9 @@
             background: #2c5a74;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 10px 24px;
             border-radius: 40px;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             font-weight: 600;
             cursor: pointer;
             display: inline-flex;
@@ -108,22 +123,31 @@
         button.secondary:hover { background: #5a6268; }
         button.success { background: #2e7d64; }
         button.success:hover { background: #236b55; }
-        .info-box {
-            background: #e8f0fe;
-            border-left: 5px solid #2c5a74;
+        button.danger { background: #c0392b; }
+        button.danger:hover { background: #e74c3c; }
+        
+        .debug-panel {
+            display: none;
+            background: #1a1a2e;
+            color: #00ff88;
             padding: 1rem;
             border-radius: 12px;
-            margin-bottom: 1.5rem;
+            margin-top: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
-        .info-box h3 { font-size: 0.9rem; margin-bottom: 8px; color: #1e2a3e; }
-        .info-box p { font-size: 0.85rem; color: #3a5468; margin: 4px 0; }
-        .info-box code {
-            background: #dce5f0;
-            padding: 2px 6px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 0.8rem;
-        }
+        .debug-panel.active { display: block; }
+        .debug-panel .step { color: #3498db; }
+        .debug-panel .chord { color: #f1c40f; }
+        .debug-panel .text { color: #ecf0f1; }
+        .debug-panel .pos { color: #e67e22; }
+        .debug-panel .error { color: #e74c3c; }
+        .debug-panel .success { color: #2ecc71; }
+        
         .batch-section {
             background: white;
             border-radius: 24px;
@@ -179,6 +203,34 @@
             font-size: 0.9rem;
         }
         .back-link:hover { color: white; }
+        .info-box {
+            background: #e8f0fe;
+            border-left: 5px solid #2c5a74;
+            padding: 0.8rem 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+        .info-box p {
+            font-size: 0.85rem;
+            color: #3a5468;
+            margin: 2px 0;
+        }
+        .info-box code {
+            background: #dce5f0;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+        .debug-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #e74c3c;
+            margin-left: 8px;
+        }
+        .debug-indicator.active { background: #2ecc71; }
     </style>
 </head>
 <body>
@@ -188,9 +240,11 @@
     <h1>
         🔄 Конвертер песен
         <span style="font-size: 0.8rem; background: #2c5a74; padding: 4px 12px; border-radius: 40px;">старый → новый формат</span>
+        <button id="debugToggle" class="debug-toggle">🐞 Отладка</button>
+        <span id="debugIndicator" class="debug-indicator"></span>
     </h1>
     <div class="subtitle">
-        Аккорды вставляются строго по позициям, разрывая слова при необходимости
+        Вставьте текст в старом формате — получите готовый для песенника
     </div>
 
     <div class="two-columns">
@@ -198,41 +252,37 @@
             <div class="card-header">📄 1. Исходный текст</div>
             <div class="card-body">
                 <div class="info-box">
-                    <h3>📌 Пример:</h3>
-                    <p><code>                    Am</code></p>
-                    <p><code>Никто не шутит с природой:</code></p>
-                    <p><code>  D7                       Em</code></p>
-                    <p><code>И дело - дрянь, и лету - конец.</code></p>
-                    <p style="margin-top: 8px;">→ аккорды и текст в РАЗНЫХ строках</p>
-                    <p style="font-size:0.8rem; color:#2c5a74;">Аккорд вставляется точно на свою позицию</p>
+                    <p>📌 Аккорды отдельными строками, текст ниже</p>
+                    <p style="font-size:0.8rem; color:#2c5a74;">Аккорды вставляются строго по позициям</p>
                 </div>
                 <textarea id="inputText" placeholder="Вставьте сюда текст песни..."></textarea>
                 <div class="button-group">
                     <button id="convertBtn">🔄 Преобразовать</button>
                     <button id="clearBtn" class="secondary">🗑️ Очистить</button>
-                    <button id="exampleBtn" class="secondary">📋 Пример</button>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">✨ 2. Новый формат</div>
+            <div class="card-header">✏️ 2. Новый формат (редактируемый)</div>
             <div class="card-body">
                 <div class="info-box">
-                    <h3>✅ Результат:</h3>
-                    <p><code>Никто не шутит с [Am]природой:</code></p>
-                    <p><code>И [D7]дело - дрянь, и лету - ко[Em]нец.</code></p>
-                    <p>→ аккорды в квадратных скобках на своих позициях</p>
+                    <p>✅ Результат можно редактировать вручную</p>
                 </div>
-                <div id="outputArea" class="result-area">
-                    Здесь появится преобразованный текст
-                </div>
+                <textarea id="outputArea" class="result-area" placeholder="Здесь появится преобразованный текст..."></textarea>
                 <div class="button-group">
-                    <button id="copyBtn">📋 Копировать результат</button>
-                    <button id="downloadBtn" class="success">💾 Скачать как .txt</button>
+                    <button id="copyBtn">📋 Копировать</button>
+                    <button id="downloadBtn" class="success">💾 Скачать .txt</button>
+                    <button id="clearOutputBtn" class="secondary">🗑️ Очистить</button>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- ====== ПАНЕЛЬ ОТЛАДКИ ====== -->
+    <div id="debugPanel" class="debug-panel">
+        <div style="color:#fff;font-weight:bold;margin-bottom:8px;">🐞 ОТЛАДКА</div>
+        <div id="debugOutput">Ожидание преобразования...</div>
     </div>
 
     <div class="batch-section">
@@ -257,10 +307,25 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
     // ============================================================
-    //  КОНВЕРТЕР — вставляет аккорды строго по позициям
-    //  Аккорд вставляется ровно на ту позицию, где он стоит
-    //  даже если это разрывает слово
+    //  КОНВЕРТЕР С ОТЛАДКОЙ — ИСПРАВЛЕННЫЙ
     // ============================================================
+
+    let debugMode = false;
+    let debugLines = [];
+
+    function debugLog(...args) {
+        if (!debugMode) return;
+        const line = args.join(' ');
+        debugLines.push(line);
+        document.getElementById('debugOutput').innerHTML = debugLines.join('\n');
+        const panel = document.getElementById('debugPanel');
+        panel.scrollTop = panel.scrollHeight;
+    }
+
+    function debugClear() {
+        debugLines = [];
+        document.getElementById('debugOutput').innerHTML = 'Ожидание преобразования...';
+    }
 
     function isChord(str) {
         str = str.trim();
@@ -276,9 +341,32 @@
         return true;
     }
 
+    // Проверяет, является ли строка строкой только с аккордами
+    // (может содержать пробелы и несколько аккордов, но не содержит русских букв)
+    function isChordLineOnly(line) {
+        const trimmed = line.trim();
+        if (trimmed === "") return false;
+        // Если есть русские буквы — это не строка с аккордами
+        if (/[а-яА-Я]/.test(line)) return false;
+        
+        // Разбиваем по пробелам и проверяем каждый токен
+        const tokens = trimmed.split(/\s+/);
+        for (const token of tokens) {
+            if (token === "") continue;
+            // Если токен не является аккордом — строка не является строкой с аккордами
+            if (!isChord(token)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     function convertToFormat(text) {
         const lines = text.split(/\r?\n/);
         const resultLines = [];
+        
+        debugLog('📄 === НАЧАЛО КОНВЕРТАЦИИ ===');
+        debugLog(`📄 Всего строк: ${lines.length}`);
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -291,15 +379,18 @@
             
             // Если строка уже содержит аккорды в квадратных скобках — пропускаем
             if (/\[[A-GH][#b]?[0-9]*[a-z]*\]/.test(line) && /[а-яА-Я]/.test(line)) {
+                debugLog(`⏭️  Строка ${i}: уже в правильном формате: "${line}"`);
                 resultLines.push(line);
                 continue;
             }
             
-            // Проверяем: это строка с аккордами (только аккорды, без русского текста)
-            const isChordLine = isChord(trimmed) && !/[а-яА-Я]/.test(line);
+            // Проверяем: это строка ТОЛЬКО с аккордами (нет русских букв, все токены — аккорды)
+            const isChordLine = isChordLineOnly(line);
             
             if (isChordLine) {
-                // Ищем следующую строку с текстом
+                debugLog(`🎵 Строка ${i}: найдена строка с аккордами: "${line}"`);
+                
+                // Ищем следующую строку с текстом (содержит русские буквы)
                 let nextLine = '';
                 let nextIndex = -1;
                 
@@ -309,23 +400,26 @@
                     if (/[а-яА-Я]/.test(lines[j])) {
                         nextLine = lines[j];
                         nextIndex = j;
+                        debugLog(`📝 Строка ${j}: найдена строка с текстом: "${nextLine}"`);
                         break;
                     }
-                    if (isChord(nextTrimmed)) continue;
+                    if (isChordLineOnly(lines[j])) {
+                        debugLog(`⏭️  Строка ${j}: пропускаем (ещё аккорды): "${lines[j]}"`);
+                        continue;
+                    }
                 }
                 
                 if (nextLine) {
-                    // ============================================================
-                    // АЛГОРИТМ: ВСТАВКА АККОРДОВ СТРОГО ПО ПОЗИЦИЯМ
-                    // ============================================================
-                    
                     const chordLine = line;
                     const textLine = nextLine;
                     
-                    // 1. Находим все аккорды с их точными позициями
+                    // Находим все аккорды с их точными позициями
                     const chords = [];
                     let searchPos = 0;
                     const chordTokens = chordLine.split(/\s+/);
+                    
+                    debugLog(`🔍 Разбор строки аккордов: "${chordLine}"`);
+                    debugLog(`🔍 Текст: "${textLine}"`);
                     
                     for (const token of chordTokens) {
                         if (token === "") continue;
@@ -336,86 +430,91 @@
                                     chord: token,
                                     position: pos
                                 });
+                                debugLog(`   🎵 Аккорд "${token}" на позиции ${pos}`);
                                 searchPos = pos + token.length;
                             }
                         }
                     }
                     
-                    // 2. Сортируем аккорды по позиции (от конца к началу)
-                    // Чтобы вставка не сдвигала позиции
+                    // Сортируем от конца к началу (чтобы вставка не сдвигала позиции)
                     chords.sort((a, b) => b.position - a.position);
+                    debugLog(`🔄 Аккорды отсортированы (от конца к началу): ${chords.map(c => c.chord + '@' + c.position).join(', ')}`);
                     
-                    // 3. Вставляем аккорды в текстовую строку строго по позициям
+                    // Вставляем аккорды строго по позициям
                     let result = textLine;
                     
                     for (const chord of chords) {
                         let pos = chord.position;
-                        
-                        // Если позиция больше длины строки — ставим в конец
                         if (pos > result.length) {
                             pos = result.length;
+                            debugLog(`⚠️  Позиция ${chord.position} больше длины строки, вставляем в конец`);
                         }
-                        
-                        // Вставляем аккорд ровно на позицию pos
-                        // Разрывая слово, если нужно
-                        result = result.slice(0, pos) + `[${chord.chord}]` + result.slice(pos);
+                        const before = result.slice(0, pos);
+                        const after = result.slice(pos);
+                        result = before + `[${chord.chord}]` + after;
+                        debugLog(`   📍 Вставка "${chord.chord}" на позицию ${pos}: "${before} [${chord.chord}] ${after}"`);
                     }
                     
+                    debugLog(`✅ Результат: "${result}"`);
                     resultLines.push(result);
-                    
-                    // Пропускаем обработанную строку с текстом
                     i = nextIndex;
                     continue;
                 } else {
+                    debugLog(`⚠️  Не найдена строка с текстом для аккордов "${trimmed}"`);
                     resultLines.push(`[${trimmed}]`);
                     continue;
                 }
             }
             
             // Обычная текстовая строка
+            debugLog(`📝 Строка ${i}: обычный текст: "${line}"`);
             resultLines.push(line);
         }
         
+        debugLog('📄 === КОНЕЦ КОНВЕРТАЦИИ ===');
         return resultLines.join('\n');
     }
 
     // ====== DOM элементы ======
     const inputTextarea = document.getElementById('inputText');
-    const outputDiv = document.getElementById('outputArea');
+    const outputArea = document.getElementById('outputArea');
     const convertBtn = document.getElementById('convertBtn');
     const clearBtn = document.getElementById('clearBtn');
-    const exampleBtn = document.getElementById('exampleBtn');
+    const clearOutputBtn = document.getElementById('clearOutputBtn');
     const copyBtn = document.getElementById('copyBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const clearFilesBtn = document.getElementById('clearFilesBtn');
+    const debugToggle = document.getElementById('debugToggle');
+    const debugPanel = document.getElementById('debugPanel');
+    const debugIndicator = document.getElementById('debugIndicator');
     
-    // Пример
-    const exampleText = `Скворец (Машина Времени) - аккорды и текст
-                    Am
-Никто не шутит с природой:
-  D7                       Em
-И дело - дрянь, и лету - конец.
-                    D7            
-И только, споря с погодой,
-                         Em
-Поёт какой-то глупый скворец.
-                   D7          
-Друзья давно отсвистели
-                     Em
-И, улетая, звали с собой,
-                  D7           
-А завтра грянут метели,
-                       Em
-Кому ты будешь нужен зимой?`;
-
+    debugToggle.addEventListener('click', () => {
+        debugMode = !debugMode;
+        debugToggle.textContent = debugMode ? '🐞 Отладка ВКЛ' : '🐞 Отладка';
+        debugToggle.classList.toggle('active', debugMode);
+        debugIndicator.classList.toggle('active', debugMode);
+        debugPanel.classList.toggle('active', debugMode);
+        if (debugMode) {
+            debugClear();
+            debugLog('🐞 Режим отладки ВКЛЮЧЁН');
+        } else {
+            debugClear();
+            debugPanel.classList.remove('active');
+        }
+    });
+    
     function updateConversion() {
+        if (debugMode) debugClear();
         const oldText = inputTextarea.value;
         if (!oldText.trim()) {
-            outputDiv.innerHTML = '<span style="color: #999;">👆 Введите текст</span>';
+            outputArea.value = '';
+            if (debugMode) debugLog('⚠️  Нет текста для конвертации');
             return '';
         }
+        if (debugMode) debugLog('🔄 ТОЧКА ОСТАНОВА 1: начало конвертации');
         const newText = convertToFormat(oldText);
-        outputDiv.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
+        outputArea.value = newText;
+        if (debugMode) debugLog('🔄 ТОЧКА ОСТАНОВА 5: конец конвертации');
         return newText;
     }
     
@@ -431,38 +530,36 @@
     let currentConvertedText = "";
     
     convertBtn.addEventListener('click', () => {
-        currentConvertedText = convertToFormat(inputTextarea.value);
-        outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
+        currentConvertedText = updateConversion();
     });
     
     clearBtn.addEventListener('click', () => {
         inputTextarea.value = "";
-        outputDiv.innerHTML = '<span style="color: #999;">👆 Здесь появится результат</span>';
+        outputArea.value = "";
+        currentConvertedText = "";
+        if (debugMode) debugClear();
+    });
+    
+    clearOutputBtn.addEventListener('click', () => {
+        outputArea.value = "";
         currentConvertedText = "";
     });
     
-    exampleBtn.addEventListener('click', () => {
-        inputTextarea.value = exampleText;
-        currentConvertedText = convertToFormat(exampleText);
-        outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
-    });
-    
     copyBtn.addEventListener('click', () => {
-        if (!currentConvertedText && inputTextarea.value) {
-            currentConvertedText = convertToFormat(inputTextarea.value);
-        }
-        if (currentConvertedText) {
-            navigator.clipboard.writeText(currentConvertedText);
+        const textToCopy = outputArea.value || currentConvertedText;
+        if (textToCopy) {
+            navigator.clipboard.writeText(textToCopy);
             alert('✅ Текст скопирован в буфер обмена!');
         } else {
-            alert('Сначала преобразуйте текст');
+            alert('Нет текста для копирования');
         }
     });
     
     downloadBtn.addEventListener('click', () => {
-        let textToSave = currentConvertedText;
+        let textToSave = outputArea.value || currentConvertedText;
         if (!textToSave && inputTextarea.value) {
             textToSave = convertToFormat(inputTextarea.value);
+            outputArea.value = textToSave;
         }
         if (textToSave) {
             const blob = new Blob([textToSave], {type: 'text/plain;charset=utf-8'});
@@ -560,11 +657,6 @@
             batchStatus.innerHTML = `<div class="status-msg error">❌ Не удалось конвертировать ни одного файла: ${errors.join('; ')}</div>`;
         }
     });
-    
-    // Инициализация
-    inputTextarea.value = exampleText;
-    currentConvertedText = convertToFormat(exampleText);
-    outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
 </script>
 </body>
 </html>
