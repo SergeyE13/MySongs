@@ -467,6 +467,187 @@ showEditorUI = function() {
     addSyncButtonToUI();
 };
 
+// ============================================================
+//  ОТСЛЕЖИВАНИЕ И СИНХРОНИЗАЦИЯ С GITHUB
+// ============================================================
+
+// ====== ПОЛУЧИТЬ СПИСОК ИЗМЕНЁННЫХ ПЕСЕН ======
+function getChangedSongs() {
+    const changed = [];
+    for (const song of songsList) {
+        const originalKey = song.id + '_original';
+        const savedText = editedSongs[song.id];
+        const originalText = editedSongs[originalKey];
+        
+        // Если есть сохранённая версия и она отличается от оригинала
+        if (savedText && originalText && savedText !== originalText) {
+            changed.push({
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                fileName: song.fileName,
+                text: savedText
+            });
+        }
+    }
+    return changed;
+}
+
+// ====== ПОКАЗАТЬ СТАТУС ИЗМЕНЕНИЙ ======
+function showSyncStatus() {
+    const changed = getChangedSongs();
+    
+    if (changed.length === 0) {
+        alert('✅ Все песни синхронизированы с GitHub.\n\nЛокальные изменения отсутствуют.');
+        return;
+    }
+    
+    let msg = '📝 ИЗМЕНЕНЫ (в локальном хранилище):\n\n';
+    changed.forEach((s, i) => {
+        msg += `${i+1}. ${s.artist} — ${s.title}\n`;
+    });
+    
+    msg += '\n📦 Нажмите "Скачать всё ZIP" чтобы скачать все изменённые песни.\n';
+    msg += '🔄 Затем загрузите файлы на GitHub.';
+    
+    alert(msg);
+    
+    // Показываем количество изменений в консоли
+    console.log(`📝 Изменено песен: ${changed.length}`);
+    changed.forEach(s => console.log(`   - ${s.artist} — ${s.title}`));
+    
+    return changed;
+}
+
+// ====== СКАЧАТЬ ВСЕ ИЗМЕНЁННЫЕ ПЕСНИ ZIP-ОМ ======
+async function downloadChangedSongsZip() {
+    const changed = getChangedSongs();
+    
+    if (changed.length === 0) {
+        alert('✅ Нет изменённых песен для скачивания.');
+        return;
+    }
+    
+    // Проверяем, есть ли библиотека JSZip
+    if (typeof JSZip === 'undefined') {
+        alert('⚠️ Библиотека JSZip не загружена. Загружаем...');
+        // Загружаем JSZip
+        await loadJSZip();
+    }
+    
+    try {
+        const zip = new JSZip();
+        
+        for (const song of changed) {
+            // Добавляем файл в ZIP
+            zip.file(song.fileName, song.text);
+            console.log(`📄 Добавлен: ${song.fileName}`);
+        }
+        
+        // Создаём ZIP и скачиваем
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(zipBlob);
+        const date = new Date().toISOString().slice(0,10);
+        
+        link.href = url;
+        link.download = `changed_songs_${date}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        alert(`✅ Скачано ${changed.length} изменённых песен в ZIP-архиве!\n\n🔄 Теперь загрузите файлы на GitHub.`);
+        console.log(`📦 ZIP скачан, песен: ${changed.length}`);
+        
+    } catch (e) {
+        console.error('❌ Ошибка создания ZIP:', e);
+        alert('❌ Ошибка при создании ZIP: ' + e.message);
+    }
+}
+
+// ====== ЗАГРУЗИТЬ JSZip (если нет) ======
+function loadJSZip() {
+    return new Promise((resolve, reject) => {
+        if (typeof JSZip !== 'undefined') {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+// ====== ОБНОВИТЬ ОРИГИНАЛЫ ПРИ ЗАГРУЗКЕ С GITHUB ======
+// Переопределяем loadSongById для обновления оригиналов
+const originalLoadSongForSync = window.loadSongById || loadSongById;
+
+window.loadSongById = async function(id, saveToStorage, forceRefresh) {
+    // Вызываем оригинальную функцию
+    await originalLoadSongForSync(id, saveToStorage, forceRefresh);
+    
+    // Обновляем оригинал из загруженного текста
+    if (currentSongId && currentRawOriginal) {
+        const originalKey = currentSongId + '_original';
+        // Перезаписываем оригинал актуальным текстом с GitHub
+        editedSongs[originalKey] = currentRawOriginal;
+        
+        // Если есть правка — она остаётся, если нет — удаляем
+        if (editedSongs[currentSongId] && editedSongs[currentSongId] === currentRawOriginal) {
+            // Если правка совпадает с оригиналом — удаляем
+            delete editedSongs[currentSongId];
+        }
+        
+        saveEditedSongs();
+        console.log('🔄 Оригинал обновлён:', currentSongId);
+    }
+    
+    updateEditorIcon();
+};
+
+// ====== ДОБАВИТЬ КНОПКИ В ИНТЕРФЕЙС ======
+function addSyncButtons() {
+    const toolbar = document.querySelector('.toolbar .controls');
+    if (!toolbar) return;
+    
+    // Кнопка "📊 Статус"
+    if (!document.getElementById('syncStatusBtn')) {
+        const statusBtn = document.createElement('button');
+        statusBtn.id = 'syncStatusBtn';
+        statusBtn.textContent = '📊 Статус';
+        statusBtn.style.cssText = 'background:#8e44ad;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
+        statusBtn.onclick = showSyncStatus;
+        toolbar.appendChild(statusBtn);
+        console.log('✅ Кнопка "Статус" добавлена');
+    }
+    
+    // Кнопка "📦 Скачать всё ZIP"
+    if (!document.getElementById('downloadZipBtn')) {
+        const zipBtn = document.createElement('button');
+        zipBtn.id = 'downloadZipBtn';
+        zipBtn.textContent = '📦 Скачать всё ZIP';
+        zipBtn.style.cssText = 'background:#27ae60;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
+        zipBtn.onclick = downloadChangedSongsZip;
+        toolbar.appendChild(zipBtn);
+        console.log('✅ Кнопка "Скачать всё ZIP" добавлена');
+    }
+}
+
+// ====== РАСШИРЯЕМ showEditorUI ======
+const originalShowEditorUI2 = showEditorUI;
+showEditorUI = function() {
+    originalShowEditorUI2();
+    addSyncButtons();
+};
+
+// ====== ИНИЦИАЛИЗАЦИЯ ======
+console.log('🔄 Модуль синхронизации загружен');
+console.log('📊 Нажмите "Статус" для просмотра изменённых песен');
+console.log('📦 Нажмите "Скачать всё ZIP" для скачивания изменений');
+
 // ====== ИНИЦИАЛИЗАЦИЯ ======
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOM загружен, инициализация редактора...');
