@@ -1,8 +1,11 @@
 ﻿// ====== ПРОСТОЙ РЕДАКТОР БЕЗ ТОКЕНА ======
 const EDITOR_PASSWORD = '13579'; // Пароль для входа в редактор
 
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (объявлены в начале)
 let isEditorMode = false;
 let editedSongs = {}; // Хранит отредактированные тексты
+let editingSongId = null; // ID песни, которую редактируем
+let editingFileName = null; // Имя файла песни
 
 // Загружаем сохранённые правки из localStorage
 function loadEditedSongs() {
@@ -73,12 +76,14 @@ function showEditorUI() {
     
     // Добавляем кнопку "Сбросить правки"
     const toolbar = document.querySelector('.toolbar .controls');
-    const resetBtn = document.createElement('button');
-    resetBtn.id = 'resetEditsBtn';
-    resetBtn.textContent = '↺ Сбросить';
-    resetBtn.style.cssText = 'background:#95a5a6;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
-    resetBtn.onclick = resetCurrentSong;
-    toolbar.appendChild(resetBtn);
+    if (!document.getElementById('resetEditsBtn')) {
+        const resetBtn = document.createElement('button');
+        resetBtn.id = 'resetEditsBtn';
+        resetBtn.textContent = '↺ Сбросить';
+        resetBtn.style.cssText = 'background:#95a5a6;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
+        resetBtn.onclick = resetCurrentSong;
+        toolbar.appendChild(resetBtn);
+    }
 }
 
 // ====== СКРЫТЬ ИНТЕРФЕЙС РЕДАКТОРА ======
@@ -94,7 +99,7 @@ function updateEditorIcon() {
     
     if (!isEditorMode) return;
     
-    // Добавляем иконку к текущей песне
+    // Добавляем иконку к активной песне
     const activeItem = document.querySelector('.song-item.active');
     if (activeItem) {
         const icon = document.createElement('button');
@@ -112,13 +117,22 @@ function updateEditorIcon() {
 
 // ====== ОТКРЫТЬ ПАНЕЛЬ РЕДАКТОРА ======
 function openEditorPanel() {
-    if (!isEditorMode || !currentSongId) {
-        alert('❌ Сначала включите режим редактирования и выберите песню');
+    if (!isEditorMode) {
+        alert('❌ Сначала включите режим редактирования (кнопка "Редактор")');
+        return;
+    }
+    
+    if (!currentSongId) {
+        alert('❌ Сначала выберите песню!');
         return;
     }
     
     const song = songsList.find(s => s.id === currentSongId);
     if (!song) return;
+    
+    // СОХРАНЯЕМ ID ПЕСНИ В ГЛОБАЛЬНУЮ ПЕРЕМЕННУЮ
+    editingSongId = currentSongId;
+    editingFileName = song.fileName;
     
     // Берём текст: если есть правка — её, иначе оригинал
     const savedText = editedSongs[currentSongId] || currentRawOriginal;
@@ -135,7 +149,20 @@ function openEditorPanel() {
 
 // ====== СОХРАНИТЬ ПРАВКУ ======
 function saveEditedSong() {
-    if (!currentSongId) return;
+    console.log('📝 saveEditedSong вызвана');
+    console.log('editingSongId:', editingSongId);
+    
+    // ПРОВЕРЯЕМ, ЧТО ПЕРЕМЕННАЯ ОПРЕДЕЛЕНА
+    if (typeof editingSongId === 'undefined' || editingSongId === null) {
+        alert('❌ Ошибка: не выбрана песня для редактирования');
+        console.error('❌ editingSongId не определён');
+        return;
+    }
+    
+    if (!editingSongId) {
+        alert('❌ Ошибка: ID песни пустой');
+        return;
+    }
     
     const content = document.getElementById('editTextarea').value;
     if (!content.trim()) {
@@ -143,13 +170,13 @@ function saveEditedSong() {
     }
     
     // Сохраняем правку в памяти и localStorage
-    editedSongs[currentSongId] = content;
+    editedSongs[editingSongId] = content;
     saveEditedSongs();
     
     // Обновляем отображение
     if (currentSongId === editingSongId) {
         // Перезагружаем песню с учётом правки
-        loadSongWithEdits(currentSongId);
+        loadSongWithEdits(editingSongId);
     }
     
     alert('✅ Правки сохранены!');
@@ -166,8 +193,10 @@ async function loadSongWithEdits(songId) {
         const originalText = await response.text();
         
         // Сохраняем оригинал, если ещё не сохранён
-        if (!editedSongs[songId + '_original']) {
-            editedSongs[songId + '_original'] = originalText;
+        const originalKey = songId + '_original';
+        if (!editedSongs[originalKey]) {
+            editedSongs[originalKey] = originalText;
+            saveEditedSongs();
         }
         
         // Берём правку или оригинал
@@ -188,13 +217,20 @@ async function loadSongWithEdits(songId) {
 
 // ====== СБРОСИТЬ ПРАВКИ ТЕКУЩЕЙ ПЕСНИ ======
 function resetCurrentSong() {
-    if (!currentSongId) return;
+    if (!currentSongId) {
+        alert('❌ Нет выбранной песни');
+        return;
+    }
+    
     if (!confirm('❗ Вернуть оригинальный текст песни?')) return;
     
     const originalKey = currentSongId + '_original';
     if (editedSongs[originalKey]) {
-        editedSongs[currentSongId] = editedSongs[originalKey];
+        // Удаляем правку
+        delete editedSongs[currentSongId];
         saveEditedSongs();
+        
+        // Загружаем оригинал
         loadSongWithEdits(currentSongId);
         alert('✅ Оригинальный текст восстановлен');
     } else {
@@ -206,11 +242,16 @@ function resetCurrentSong() {
 function closeEditorPanel() {
     document.getElementById('adminPanel').classList.remove('active');
     document.body.style.overflow = 'auto';
+    editingSongId = null;
+    editingFileName = null;
 }
 
-// ====== ПЕРЕХВАТЫВАЕМ ЗАГРУЗКУ ПЕСЕН ======
-// Сохраняем оригиналы при загрузке
-const originalLoadSong = loadSongById;
+// ====== ПЕРЕХВАТЫВАЕМ ЗАГРУЗКУ ПЕСЕН (сохраняем оригиналы) ======
+// Сохраняем оригинальную функцию, чтобы не потерять
+if (typeof originalLoadSong === 'undefined') {
+    var originalLoadSong = loadSongById;
+}
+
 loadSongById = async function(id, saveToStorage, forceRefresh) {
     await originalLoadSong(id, saveToStorage, forceRefresh);
     
@@ -239,4 +280,5 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('📝 Простой редактор загружен!');
     console.log('🔑 Пароль:', EDITOR_PASSWORD);
     console.log('💾 Правок в памяти:', Object.keys(editedSongs).length);
+    console.log('📌 editingSongId:', editingSongId);
 });
