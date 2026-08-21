@@ -12,22 +12,20 @@ const STORAGE_LAST_SONG = 'songbook_last_song';
 function isChordLike(str) {
     str = str.trim();
     if (str === "") return false;
+    
+    // Если есть русские буквы - это не аккорд
     if (/[а-яА-Я]/.test(str)) return false;
+    
+    // Убираем бас-ноту (всё что после /)
     let baseChord = str.split('/')[0].trim();
     if (baseChord === "") return false;
-    const pattern = /^[A-GH][#b]?(?:maj|min|m|sus|add|dim|aug|\+|-)?[0-9]*(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?$/i;
+    
+    // Простая проверка: аккорд начинается с буквы A-G или H
+    // и может содержать #, b, цифры и буквенные суффиксы
+    const pattern = /^[A-GH][#b]?[0-9]*(?:maj|min|m|sus|add|dim|aug|\+|-)?[0-9]*$/i;
+    
     if (!pattern.test(baseChord)) return false;
-    const allowedSuffixes = ['maj', 'min', 'm', 'sus', 'add', 'dim', 'aug'];
-    const chordWithoutRoot = baseChord.replace(/^[A-GH][#b]?/, '');
-    if (chordWithoutRoot.length > 0) {
-        let testStr = chordWithoutRoot;
-        for (const suffix of allowedSuffixes) {
-            testStr = testStr.replace(new RegExp(suffix, 'ig'), '');
-        }
-        if (testStr && !/^[0-9+\-]*$/.test(testStr)) {
-            return false;
-        }
-    }
+    
     return true;
 }
 
