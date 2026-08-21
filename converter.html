@@ -275,22 +275,25 @@
         <!-- Левая колонка: исходник (старый формат) -->
         <div class="card">
             <div class="card-header">
-                📄 1. Старый формат (исходник)
+                📄 1. Исходный текст
             </div>
             <div class="card-body">
                 <div class="info-box">
-                    <h3>📌 Пример старого формата:</h3>
-                    <p><code>Em</code><br>Белый снег, серый лед<br><code>Am</code><br>На растрескавшейся земле<br><code>C</code><br>Одеялом из луж</p>
-                    <p style="margin-top: 8px;">→ аккорды отдельными строками, текст отдельно</p>
-                    <p style="margin-top: 4px; font-size:0.8rem; color:#2c5a74;">
+                    <h3>📌 Поддерживаются форматы:</h3>
+                    <p><strong>Вариант 1:</strong> Аккорды отдельными строками</p>
+                    <p><code>Em</code><br>Белый снег, серый лед</p>
+                    <p><strong>Вариант 2:</strong> Аккорды уже расставлены в тексте</p>
+                    <p><code>[Am]Никто не шутит с природой</code><br>или <code>  D7</code> (с отступами)</p>
+                    <p style="margin-top: 8px; font-size:0.8rem; color:#2c5a74;">
                         ✅ Поддерживаются: Am, C, Dm7, G#m, Hm, Bb, F#m, Am/G, Em7-5 и др.
                     </p>
                 </div>
-                <textarea id="inputText" placeholder="Вставьте сюда текст песни в старом формате..."></textarea>
+                <textarea id="inputText" placeholder="Вставьте сюда текст песни..."></textarea>
                 <div class="button-group">
                     <button id="convertBtn">🔄 Преобразовать</button>
                     <button id="clearBtn" class="secondary">🗑️ Очистить</button>
                     <button id="exampleBtn" class="secondary">📋 Пример</button>
+                    <button id="exampleOldBtn" class="secondary">📋 Пример (старый формат)</button>
                 </div>
             </div>
         </div>
@@ -324,7 +327,7 @@
         <div class="card-body">
             <div class="info-box" style="margin-bottom: 12px;">
                 <h3>📌 Как это работает:</h3>
-                <p>1. Выберите один или несколько <code>.txt</code> файлов со старым форматом</p>
+                <p>1. Выберите один или несколько <code>.txt</code> файлов</p>
                 <p>2. Конвертер обработает их все и предложит скачать архив с новыми файлами</p>
                 <p>3. Просто замените старые файлы в папке <code>songs/</code> на новые</p>
             </div>
@@ -351,7 +354,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
     // ============================================================
-    //  УЛУЧШЕННЫЙ КОНВЕРТЕР — поддерживает все виды аккордов
+    //  УЛУЧШЕННЫЙ КОНВЕРТЕР
+    //  - Распознаёт аккорды отдельными строками
+    //  - Распознаёт аккорды уже расставленные в тексте
+    //  - Не ломает уже правильный формат
     // ============================================================
 
     function isChord(str) {
@@ -362,45 +368,74 @@
         let baseChord = str.split('/')[0].trim();
         if (baseChord === "") return false;
         
-        // Расширенный паттерн для аккордов:
-        // - Буква: A-G или H
-        // - # или b (опционально)
-        // - Суффиксы: m, maj, min, dim, aug, sus, add, m7, maj7, m7-5, 7sus4, etc.
-        // - Цифры: 2, 4, 5, 6, 7, 9, 11, 13
-        // - Знаки: +, -
+        // Расширенный паттерн для аккордов
         const pattern = /^[A-GH][#b]?(?:maj|min|m|sus|add|dim|aug|\+|-)?[0-9]*(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?$/i;
         
         if (!pattern.test(baseChord)) return false;
         
-        // Дополнительная проверка: если есть буквы после цифр — это не аккорд
-        const lettersAfter = baseChord.replace(/^[A-GH][#b]?[0-9]*/, '');
-        if (lettersAfter.length > 0) {
-            const allowed = ['maj', 'min', 'm', 'sus', 'add', 'dim', 'aug'];
-            let testStr = lettersAfter;
-            for (const suffix of allowed) {
-                testStr = testStr.replace(new RegExp(suffix, 'ig'), '');
-            }
-            if (testStr && !/^[0-9+\-]*$/.test(testStr)) {
-                return false;
-            }
+        return true;
+    }
+
+    // Проверка, содержит ли строка уже расставленные аккорды
+    function hasChordsInLine(line) {
+        // Если строка содержит [аккорд] или аккорд с отступом в начале
+        // Например: "[Am]Текст" или "  D7  текст"
+        const chordInBrackets = /\[[A-GH][#b]?[0-9]*[a-z]*\]/.test(line);
+        if (chordInBrackets) return true;
+        
+        // Проверяем отступы: строка начинается с пробелов, затем аккорд, затем пробелы
+        const trimmed = line.trim();
+        const leadingSpaces = line.length - line.trimStart().length;
+        if (leadingSpaces > 0 && line.trimStart().match(/^[A-GH][#b]?[0-9]*[a-z]*\s/)) {
+            return true;
         }
         
-        return true;
+        return false;
     }
 
     function convertOldToNewFormat(text) {
         const lines = text.split(/\r?\n/);
         const resultLines = [];
         let pendingChord = null;
+        let isOldFormat = true; // предположим, что старый формат, пока не увидим аккорды в строках
         
+        // Сначала проверим, есть ли уже аккорды в строках
+        let hasInlineChords = false;
+        for (const line of lines) {
+            if (hasChordsInLine(line)) {
+                hasInlineChords = true;
+                break;
+            }
+        }
+        
+        // Если есть аккорды в строках — это уже новый формат, просто возвращаем как есть
+        if (hasInlineChords) {
+            // Проверяем, все ли аккорды в квадратных скобках, или есть аккорды с отступами
+            let needConvert = false;
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed === "") continue;
+                // Если строка начинается с аккорда без скобок (с отступом)
+                const match = line.match(/^(\s*)([A-GH][#b]?[0-9]*[a-z]*)(\s+)/);
+                if (match && !/\[/.test(line)) {
+                    needConvert = true;
+                    break;
+                }
+            }
+            
+            if (!needConvert) {
+                // Всё уже в правильном формате
+                return text;
+            }
+        }
+        
+        // Если это старый формат (аккорды отдельными строками)
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
             let trimmed = line.trim();
             
-            // Пропускаем совсем пустые, но сохраняем как пустые строки
             if (trimmed === "") {
                 if (pendingChord !== null) {
-                    // Если был аккорд без текста — добавляем его как отдельную строку
                     resultLines.push(`[${pendingChord}]`);
                     pendingChord = null;
                 }
@@ -408,12 +443,11 @@
                 continue;
             }
             
-            // Проверяем, является ли строка аккордом
+            // Проверяем, является ли строка аккордом (отдельная строка с аккордом)
             const isChordLine = isChord(trimmed);
             
-            if (isChordLine) {
+            if (isChordLine && !hasChordsInLine(line)) {
                 // Запоминаем аккорд для следующей текстовой строки
-                // Если аккордов несколько подряд — объединяем через пробел
                 if (pendingChord !== null) {
                     pendingChord = pendingChord + ' ' + trimmed;
                 } else {
@@ -422,26 +456,28 @@
             } else {
                 // Это текстовая строка
                 if (pendingChord !== null) {
-                    // Распределяем аккорды по словам (если несколько аккордов)
-                    const chords = pendingChord.split(' ');
-                    const words = trimmed.split(/\s+/);
-                    
-                    // Если аккордов больше одного и слов достаточно
-                    if (chords.length > 1 && words.length >= chords.length) {
-                        let result = '';
-                        let chordIdx = 0;
-                        for (let w = 0; w < words.length; w++) {
-                            if (chordIdx < chords.length) {
-                                result += `[${chords[chordIdx]}]${words[w]} `;
-                                chordIdx++;
-                            } else {
-                                result += words[w] + ' ';
-                            }
-                        }
-                        resultLines.push(result.trim());
+                    // Если в строке уже есть аккорды в скобках, не добавляем новые
+                    if (/\[[A-GH][#b]?[0-9]*[a-z]*\]/.test(line)) {
+                        resultLines.push(line);
                     } else {
-                        // Простой случай: один аккорд на всю строку
-                        resultLines.push(`[${pendingChord}]${line}`);
+                        const chords = pendingChord.split(' ');
+                        const words = trimmed.split(/\s+/);
+                        
+                        if (chords.length > 1 && words.length >= chords.length) {
+                            let result = '';
+                            let chordIdx = 0;
+                            for (let w = 0; w < words.length; w++) {
+                                if (chordIdx < chords.length) {
+                                    result += `[${chords[chordIdx]}]${words[w]} `;
+                                    chordIdx++;
+                                } else {
+                                    result += words[w] + ' ';
+                                }
+                            }
+                            resultLines.push(result.trim());
+                        } else {
+                            resultLines.push(`[${pendingChord}]${line}`);
+                        }
                     }
                     pendingChord = null;
                 } else {
@@ -450,7 +486,6 @@
             }
         }
         
-        // Если остался висячий аккорд в конце (без текста)
         if (pendingChord !== null) {
             resultLines.push(`[${pendingChord}]`);
         }
@@ -464,12 +499,32 @@
     const convertBtn = document.getElementById('convertBtn');
     const clearBtn = document.getElementById('clearBtn');
     const exampleBtn = document.getElementById('exampleBtn');
+    const exampleOldBtn = document.getElementById('exampleOldBtn');
     const copyBtn = document.getElementById('copyBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const clearFilesBtn = document.getElementById('clearFilesBtn');
     
-    // Пример старого формата с разными аккордами
-    const exampleText = `Em
+    // Пример с аккордами в строках (уже почти готовый формат)
+    const exampleText = `Скворец (Машина Времени) - аккорды и текст
+                    Am
+Никто не шутит с природой:
+  D7                       Em
+И дело - дрянь, и лету - конец.
+                    D7            
+И только, споря с погодой,
+                         Em
+Поёт какой-то глупый скворец.
+                   D7          
+Друзья давно отсвистели
+                     Em
+И, улетая, звали с собой,
+                  D7           
+А завтра грянут метели,
+                       Em
+Кому ты будешь нужен зимой?`;
+
+    // Пример старого формата (аккорды отдельными строками)
+    const exampleOldText = `Em
 Белый снег, серый лед
 Am
 На растрескавшейся земле
@@ -532,6 +587,12 @@ D
     exampleBtn.addEventListener('click', () => {
         inputTextarea.value = exampleText;
         currentConvertedText = convertOldToNewFormat(exampleText);
+        outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
+    });
+    
+    exampleOldBtn.addEventListener('click', () => {
+        inputTextarea.value = exampleOldText;
+        currentConvertedText = convertOldToNewFormat(exampleOldText);
         outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
     });
     
@@ -615,7 +676,6 @@ D
         const zip = new JSZip();
         let convertedCount = 0;
         let errors = [];
-        let convertedNames = [];
         
         for (const file of selectedFiles) {
             try {
@@ -625,7 +685,6 @@ D
                 if (!newFileName.toLowerCase().endsWith('.txt')) newFileName += '.txt';
                 zip.file(newFileName, converted);
                 convertedCount++;
-                convertedNames.push(newFileName);
             } catch (err) {
                 errors.push(`${file.name}: ${err.message}`);
             }
@@ -651,7 +710,7 @@ D
         }
     });
     
-    // Инициализация — показываем пример
+    // Инициализация — показываем пример с аккордами в строках
     inputTextarea.value = exampleText;
     currentConvertedText = convertOldToNewFormat(exampleText);
     outputDiv.innerHTML = escapeHtml(currentConvertedText).replace(/\n/g, '<br>');
