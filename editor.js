@@ -404,6 +404,69 @@ if (typeof originalLoadSong === 'function') {
     console.warn('⚠️ Оригинальная loadSongById не найдена!');
 }
 
+// ====== КНОПКА СИНХРОНИЗАЦИИ ======
+
+function getChangedSongs() {
+    const changed = [];
+    for (const song of songsList) {
+        const originalKey = song.id + '_original';
+        const savedText = editedSongs[song.id];
+        const originalText = editedSongs[originalKey];
+        if (savedText && originalText && savedText !== originalText) {
+            changed.push({
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                fileName: song.fileName
+            });
+        }
+    }
+    return changed;
+}
+
+function showSyncStatus() {
+    const changed = getChangedSongs();
+    
+    if (changed.length === 0) {
+        alert('✅ Все песни синхронизированы с GitHub.\n\nЛокальные изменения отсутствуют.');
+        return;
+    }
+    
+    let msg = '📝 ИЗМЕНЕНЫ (в локальном хранилище):\n\n';
+    changed.forEach((s, i) => {
+        msg += `${i+1}. ${s.artist} — ${s.title}\n`;
+    });
+    
+    msg += '\n🔄 ЧТО ДЕЛАТЬ:\n';
+    msg += '1. Включите режим "Правка" у песни\n';
+    msg += '2. Скопируйте текст из редактора\n';
+    msg += '3. На GitHub откройте файл и вставьте текст\n';
+    msg += '4. Сохраните изменения на GitHub\n';
+    msg += '5. Нажмите "⟳ Обновить" в песеннике';
+    
+    alert(msg);
+}
+
+// Добавляем кнопку
+function addSyncButtonToUI() {
+    const toolbar = document.querySelector('.toolbar .controls');
+    if (!toolbar || document.getElementById('syncStatusBtn')) return;
+    
+    const btn = document.createElement('button');
+    btn.id = 'syncStatusBtn';
+    btn.textContent = '📊 Статус';
+    btn.style.cssText = 'background:#8e44ad;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
+    btn.onclick = showSyncStatus;
+    toolbar.appendChild(btn);
+}
+
+// Расширяем showEditorUI
+const originalShowUI = showEditorUI;
+showEditorUI = function() {
+    originalShowUI();
+    addSyncButtonToUI();
+};
+
 // ====== ИНИЦИАЛИЗАЦИЯ ======
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOM загружен, инициализация редактора...');
