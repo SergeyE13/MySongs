@@ -10,16 +10,21 @@
 <body>
 <div class="app">
     <div class="overlay" id="overlay"></div>
-    
+
+   
     <!-- ====== САЙДБАР ====== -->
     <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h2>🎸 Песенник</h2>
-            <div class="header-buttons">
-                <button id="refreshCsvBtn" class="icon-btn" title="Обновить список песен">⟳</button>
-                <button id="converterIconBtn" class="icon-btn" title="Конвертер">🔄</button>
-            </div>
-        </div>
+		<div class="sidebar-header">
+			<h2>🎸 Песенник</h2>
+			<div class="header-buttons">
+				<button id="addSongBtn" class="icon-btn" title="Новая песня" style="background:#27ae60;display:none;">➕</button>
+				<button id="syncStatusBtn" class="icon-btn" title="Статус синхронизации" style="background:#8e44ad;display:none;">📊</button>
+				<button id="downloadZipBtn" class="icon-btn" title="Скачать всё ZIP" style="background:#2c5a74;display:none;">📦</button>
+				<button id="refreshCsvBtn" class="icon-btn" title="Обновить список песен">⟳</button>
+				<button id="converterIconBtn" class="icon-btn" title="Конвертер">🔄</button>
+			</div>
+		</div>	
+			
         <div class="search-box">
             <input type="text" id="searchInput" placeholder="🔍 Поиск песен...">
         </div>

@@ -9,7 +9,7 @@ console.log('📂 editor.js загружен');
 
 // ====== ПЕРЕМЕННЫЕ ======
 let isEditorMode = false;
-let editedSongs = {};              // локальные правки (fallback)
+let editedSongs = {};
 let editingSongId = null;
 let editingFileName = null;
 let GITHUB_TOKEN = localStorage.getItem('github_token') || '';
@@ -86,7 +86,7 @@ function isTokenValid() {
     return GITHUB_TOKEN && GITHUB_TOKEN.startsWith('ghp_') && GITHUB_TOKEN.length > 20;
 }
 
-// ====== КНОПКА "РЕДАКТОР" ======
+// ====== КНОПКА "РЕДАКТОР" (В ТУЛБАРЕ) ======
 function addEditorButton() {
     const toolbar = document.querySelector('.toolbar .controls');
     if (!toolbar) return;
@@ -101,13 +101,28 @@ function addEditorButton() {
     console.log('✅ Кнопка "Редактор" добавлена');
 }
 
+// ====== ПОКАЗАТЬ/СКРЫТЬ КНОПКИ В САЙДБАРЕ ======
+function showSidebarButtons() {
+    document.getElementById('addSongBtn').style.display = 'flex';
+    document.getElementById('syncStatusBtn').style.display = 'flex';
+    document.getElementById('downloadZipBtn').style.display = 'flex';
+}
+
+function hideSidebarButtons() {
+    document.getElementById('addSongBtn').style.display = 'none';
+    document.getElementById('syncStatusBtn').style.display = 'none';
+    document.getElementById('downloadZipBtn').style.display = 'none';
+}
+
 // ====== ВКЛЮЧЕНИЕ РЕЖИМА РЕДАКТИРОВАНИЯ ======
 function toggleEditor() {
     if (!isEditorMode) {
+        // Вход в режим
         if (isTokenValid()) {
             isEditorMode = true;
-            document.getElementById('editorToggleBtn').textContent = '🔒 Закрыть';
-            document.getElementById('editorToggleBtn').style.background = '#e74c3c';
+            document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
+            document.getElementById('editorToggleBtn').style.background = '#27ae60';
+            showSidebarButtons();
             showEditorUI();
             if (currentSongId) {
                 openEditorPanel();
@@ -131,6 +146,7 @@ function toggleEditor() {
         isEditorMode = false;
         document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
         document.getElementById('editorToggleBtn').style.background = '#f39c12';
+        hideSidebarButtons();
         hideEditorUI();
         closeEditorPanel();
     }
@@ -138,40 +154,13 @@ function toggleEditor() {
 
 // ====== ПОКАЗАТЬ ИНТЕРФЕЙС РЕДАКТОРА ======
 function showEditorUI() {
-    const toolbar = document.querySelector('.toolbar .controls');
-    if (!document.getElementById('addSongBtn')) {
-        const addBtn = document.createElement('button');
-        addBtn.id = 'addSongBtn';
-        addBtn.textContent = '+ Новая';
-        addBtn.style.cssText = 'background:#27ae60;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
-        addBtn.onclick = createNewSong;
-        toolbar.appendChild(addBtn);
-    }
-    if (!document.getElementById('syncStatusBtn')) {
-        const statusBtn = document.createElement('button');
-        statusBtn.id = 'syncStatusBtn';
-        statusBtn.textContent = '📊 Статус';
-        statusBtn.style.cssText = 'background:#8e44ad;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
-        statusBtn.onclick = showSyncStatus;
-        toolbar.appendChild(statusBtn);
-    }
-    if (!document.getElementById('downloadZipBtn')) {
-        const zipBtn = document.createElement('button');
-        zipBtn.id = 'downloadZipBtn';
-        zipBtn.textContent = '📦 Скачать всё ZIP';
-        zipBtn.style.cssText = 'background:#27ae60;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
-        zipBtn.onclick = downloadChangedSongsZip;
-        toolbar.appendChild(zipBtn);
-    }
+    // Кнопки уже в сайдбаре, просто обновляем иконку
     updateEditorIcon();
 }
 
 // ====== СКРЫТЬ ИНТЕРФЕЙС ======
 function hideEditorUI() {
-    ['addSongBtn', 'syncStatusBtn', 'downloadZipBtn'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.remove();
-    });
+    // Ничего не удаляем, кнопки остаются в сайдбаре
 }
 
 // ====== ИКОНКА РЕДАКТИРОВАНИЯ ======
@@ -216,6 +205,18 @@ function openEditorPanel() {
     setTimeout(() => document.getElementById('editTextarea').focus(), 300);
 }
 
+// ====== ЗАКРЫТЬ РЕДАКТОР (без сохранения) ======
+function closeEditorPanel() {
+    console.log('🔒 closeEditorPanel() вызвана');
+    const panel = document.getElementById('adminPanel');
+    if (panel) {
+        panel.classList.remove('active');
+    }
+    document.body.style.overflow = 'auto';
+    editingSongId = null;
+    editingFileName = null;
+}
+
 // ====== ОБНОВЛЕНИЕ ТЕКУЩЕЙ ПЕСНИ С GITHUB ======
 async function refreshCurrentSongFromGitHub() {
     if (!editingSongId) return;
@@ -224,29 +225,20 @@ async function refreshCurrentSongFromGitHub() {
     if (!song) return;
     
     try {
-        // Загружаем свежий текст с GitHub
         const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error('Не удалось загрузить');
         const freshText = await response.text();
         
-        // Обновляем оригинал
         const originalKey = editingSongId + '_original';
         editedSongs[originalKey] = freshText;
-        
-        // Если есть локальная правка — удаляем (она уже сохранена на GitHub)
         delete editedSongs[editingSongId];
         saveEditedSongs();
         
-        // Обновляем отображение
         currentRawOriginal = freshText;
         currentSongId = editingSongId;
         updateSongDisplay();
-        
-        // Обновляем иконку
         updateEditorIcon();
-        
-        // Перерисовываем список (чтобы убрать пометку "локально")
         renderSongList(document.getElementById('searchInput')?.value || '');
         
         console.log(`✅ Песня "${song.title}" обновлена с GitHub`);
@@ -281,7 +273,6 @@ async function saveEditedSong() {
     }
 
     if (!savedOnGitHub) {
-        // Сохраняем локально
         editedSongs[editingSongId] = content;
         const originalKey = editingSongId + '_original';
         if (!editedSongs[originalKey]) {
@@ -292,15 +283,12 @@ async function saveEditedSong() {
         renderSongList(document.getElementById('searchInput')?.value || '');
     }
 
-    // Закрываем редактор
     closeEditorPanel();
 
     if (savedOnGitHub) {
-        // Если сохранилось на GitHub — обновляем с GitHub
         alert('✅ Песня сохранена на GitHub!');
         await refreshCurrentSongFromGitHub();
     } else {
-        // Если сохранилось локально — обновляем из локального хранилища
         if (currentSongId === editingSongId) {
             await loadSongWithEdits(editingSongId);
         }
@@ -409,7 +397,7 @@ async function appendToCSV(line) {
     await saveFileToGitHub(path, newContent, 'Обновление списка песен');
 }
 
-// ====== СТАТУС И СКАЧИВАНИЕ ZIP ======
+// ====== СТАТУС ======
 function getChangedSongs() {
     const changed = [];
     for (const song of songsList) {
@@ -443,6 +431,7 @@ function showSyncStatus() {
     alert(msg);
 }
 
+// ====== СКАЧАТЬ ZIP ======
 async function downloadChangedSongsZip() {
     const changed = getChangedSongs();
     if (changed.length === 0) {
@@ -482,18 +471,6 @@ function loadJSZip() {
         script.onerror = reject;
         document.head.appendChild(script);
     });
-}
-
-// ====== ЗАКРЫТЬ РЕДАКТОР ======
-function closeEditorPanel() {
-    console.log('🔒 closeEditorPanel() вызвана');
-    const panel = document.getElementById('adminPanel');
-    if (panel) {
-        panel.classList.remove('active');
-    }
-    document.body.style.overflow = 'auto';
-    editingSongId = null;
-    editingFileName = null;
 }
 
 // ====== ПЕРЕХВАТ ЗАГРУЗКИ ПЕСЕН ======
@@ -537,16 +514,21 @@ renderSongList = function(filterText) {
 document.addEventListener('DOMContentLoaded', function() {
     loadEditedSongs();
     addEditorButton();
+    
+    // Назначаем обработчики для кнопок в сайдбаре
+    document.getElementById('addSongBtn').addEventListener('click', createNewSong);
+    document.getElementById('syncStatusBtn').addEventListener('click', showSyncStatus);
+    document.getElementById('downloadZipBtn').addEventListener('click', downloadChangedSongsZip);
+    
     if (isTokenValid()) {
         isEditorMode = true;
-        const btn = document.getElementById('editorToggleBtn');
-        if (btn) {
-            btn.textContent = '🔒 Закрыть';
-            btn.style.background = '#e74c3c';
-        }
+        document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
+        document.getElementById('editorToggleBtn').style.background = '#27ae60';
+        showSidebarButtons();
         showEditorUI();
         console.log('✅ Автовход по токену');
     }
+    
     console.log('📝 Редактор загружен');
     console.log('🔑 Токен:', isTokenValid() ? '✅ есть' : '❌ нет');
 });
