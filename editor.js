@@ -154,7 +154,6 @@ function toggleEditor() {
 
 // ====== ПОКАЗАТЬ ИНТЕРФЕЙС РЕДАКТОРА ======
 function showEditorUI() {
-    // Кнопки уже в сайдбаре, просто обновляем иконку
     updateEditorIcon();
 }
 
@@ -215,6 +214,12 @@ function closeEditorPanel() {
     document.body.style.overflow = 'auto';
     editingSongId = null;
     editingFileName = null;
+}
+
+// ====== АЛИАС ДЛЯ СОВМЕСТИМОСТИ С HTML ======
+// В HTML кнопки вызывают closeEditor(), поэтому создаём ссылку
+function closeEditor() {
+    closeEditorPanel();
 }
 
 // ====== ОБНОВЛЕНИЕ ТЕКУЩЕЙ ПЕСНИ С GITHUB ======
