@@ -1,61 +1,97 @@
-﻿// ====== ПРОСТОЙ РЕДАКТОР БЕЗ ТОКЕНА ======
+﻿// ============================================================
+//  РЕДАКТОР С АВТОСОХРАНЕНИЕМ НА GITHUB
+//  Токен хранится в localStorage.
+//  При наличии токена — редактирование без пароля,
+//  сохранение сразу на GitHub.
+// ============================================================
+
 console.log('📂 editor.js загружен');
 
-const EDITOR_PASSWORD = '13579'; // Пароль для входа в редактор
-
-// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (объявлены в начале)
+// ====== ПЕРЕМЕННЫЕ ======
 let isEditorMode = false;
-let editedSongs = {}; // Хранит отредактированные тексты
-let editingSongId = null; // ID песни, которую редактируем
-let editingFileName = null; // Имя файла песни
+let editedSongs = {};              // локальные правки (fallback)
+let editingSongId = null;
+let editingFileName = null;
+let GITHUB_TOKEN = localStorage.getItem('github_token') || '';
 
-console.log('📌 Переменные инициализированы:', {
-    isEditorMode,
-    editingSongId,
-    editingFileName,
-    editedSongsKeys: Object.keys(editedSongs).length
-});
+// ====== РЕПОЗИТОРИЙ (захардкожен, но можно вынести в настройки) ======
+const REPO_OWNER = 'SergeyE13';
+const REPO_NAME = 'MySongs';
+const BRANCH = 'main';
 
-// Загружаем сохранённые правки из localStorage
+// ====== ЗАГРУЗКА / СОХРАНЕНИЕ ЛОКАЛЬНЫХ ПРАВОК ======
 function loadEditedSongs() {
-    console.log('🔄 loadEditedSongs() вызвана');
     try {
         const saved = localStorage.getItem('edited_songs');
-        console.log('📦 Данные из localStorage:', saved ? 'есть' : 'нет');
         if (saved) {
             editedSongs = JSON.parse(saved);
             console.log('📝 Загружено правок:', Object.keys(editedSongs).length);
-            console.log('📝 Ключи правок:', Object.keys(editedSongs));
         }
     } catch (e) {
-        console.warn('❌ Ошибка загрузки правок:', e);
+        console.warn('Ошибка загрузки правок:', e);
     }
 }
 
-// Сохраняем правки в localStorage
 function saveEditedSongs() {
-    console.log('💾 saveEditedSongs() вызвана');
     try {
         localStorage.setItem('edited_songs', JSON.stringify(editedSongs));
-        console.log('💾 Правки сохранены, всего:', Object.keys(editedSongs).length);
+        console.log('💾 Правки сохранены локально');
     } catch (e) {
-        console.warn('❌ Ошибка сохранения:', e);
+        console.warn('Ошибка сохранения:', e);
     }
 }
 
-// ====== КНОПКА ВХОДА В РЕДАКТОР ======
+// ====== РАБОТА С GITHUB API ======
+async function getFileSha(path) {
+    try {
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path}`;
+        const res = await fetch(url, {
+            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.sha;
+    } catch {
+        return null;
+    }
+}
+
+async function saveFileToGitHub(path, content, message) {
+    const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path}`;
+    const sha = await getFileSha(path);
+    const body = {
+        message: message || `Обновление ${path}`,
+        content: btoa(unescape(encodeURIComponent(content))),
+        branch: BRANCH
+    };
+    if (sha) body.sha = sha;
+
+    const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+            'Authorization': `token ${GITHUB_TOKEN}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Ошибка GitHub API');
+    }
+    return await res.json();
+}
+
+// ====== ПРОВЕРКА ТОКЕНА ======
+function isTokenValid() {
+    return GITHUB_TOKEN && GITHUB_TOKEN.startsWith('ghp_') && GITHUB_TOKEN.length > 20;
+}
+
+// ====== КНОПКА "РЕДАКТОР" (В ТУЛБАРЕ) ======
 function addEditorButton() {
-    console.log('🔧 addEditorButton() вызвана');
     const toolbar = document.querySelector('.toolbar .controls');
-    if (!toolbar) {
-        console.warn('⚠️ Toolbar не найден');
-        return;
-    }
-    if (document.getElementById('editorToggleBtn')) {
-        console.log('ℹ️ Кнопка уже существует');
-        return;
-    }
-    
+    if (!toolbar) return;
+    if (document.getElementById('editorToggleBtn')) return;
+
     const btn = document.createElement('button');
     btn.id = 'editorToggleBtn';
     btn.textContent = '✏️ Редактор';
@@ -65,421 +101,299 @@ function addEditorButton() {
     console.log('✅ Кнопка "Редактор" добавлена');
 }
 
-// ====== ВКЛЮЧИТЬ/ВЫКЛЮЧИТЬ РЕДАКТОР ======
+// ====== ВКЛЮЧЕНИЕ РЕЖИМА РЕДАКТИРОВАНИЯ ======
 function toggleEditor() {
-    console.log('🔄 toggleEditor() вызвана, текущий режим:', isEditorMode);
-    
     if (!isEditorMode) {
-        // Пытаемся войти
-        console.log('🔑 Запрос пароля');
-        const pwd = prompt('🔑 Введите пароль для редактирования:');
-        console.log('🔑 Пароль введён:', pwd ? '***' : 'отмена');
-        
-        if (pwd === EDITOR_PASSWORD) {
-            console.log('✅ Пароль верный');
+        // Если токен есть — включаем сразу
+        if (isTokenValid()) {
             isEditorMode = true;
             document.getElementById('editorToggleBtn').textContent = '🔒 Закрыть';
             document.getElementById('editorToggleBtn').style.background = '#e74c3c';
             showEditorUI();
-            alert('✅ Режим редактирования включен!');
-        } else if (pwd !== null) {
-            console.warn('❌ Неверный пароль');
-            alert('❌ Неверный пароль!');
+            // Если есть текущая песня — сразу открываем редактор
+            if (currentSongId) {
+                openEditorPanel();
+            } else {
+                alert('ℹ️ Сначала выберите песню.');
+            }
+            return;
+        }
+
+        // Токена нет — запрашиваем
+        const token = prompt('🔑 Введите ваш GitHub-токен (начинается с ghp_):');
+        if (token && token.startsWith('ghp_') && token.length > 20) {
+            localStorage.setItem('github_token', token);
+            GITHUB_TOKEN = token;
+            alert('✅ Токен сохранён в браузере!');
+            // Повторно вызываем toggleEditor для входа
+            toggleEditor();
+        } else if (token !== null) {
+            alert('❌ Неверный формат токена. Попробуйте снова.');
         }
     } else {
-        // Выходим из режима
-        console.log('🔒 Выход из режима редактирования');
+        // Выход из режима
         isEditorMode = false;
         document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
         document.getElementById('editorToggleBtn').style.background = '#f39c12';
         hideEditorUI();
-        closeEditor(); // <-- ИСПРАВЛЕНО: теперь вызывается closeEditor()
+        closeEditor();
     }
 }
 
 // ====== ПОКАЗАТЬ ИНТЕРФЕЙС РЕДАКТОРА ======
 function showEditorUI() {
-    console.log('🖥️ showEditorUI() вызвана');
-    // Показываем иконку редактирования у текущей песни
-    updateEditorIcon();
-    
-    // Добавляем кнопку "Сбросить правки"
+    // Добавляем кнопки управления
     const toolbar = document.querySelector('.toolbar .controls');
-    if (!document.getElementById('resetEditsBtn')) {
-        const resetBtn = document.createElement('button');
-        resetBtn.id = 'resetEditsBtn';
-        resetBtn.textContent = '↺ Сбросить';
-        resetBtn.style.cssText = 'background:#95a5a6;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
-        resetBtn.onclick = resetCurrentSong;
-        toolbar.appendChild(resetBtn);
-        console.log('✅ Кнопка "Сбросить" добавлена');
+    if (!document.getElementById('addSongBtn')) {
+        const addBtn = document.createElement('button');
+        addBtn.id = 'addSongBtn';
+        addBtn.textContent = '+ Новая';
+        addBtn.style.cssText = 'background:#27ae60;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
+        addBtn.onclick = createNewSong;
+        toolbar.appendChild(addBtn);
     }
+    if (!document.getElementById('syncStatusBtn')) {
+        const statusBtn = document.createElement('button');
+        statusBtn.id = 'syncStatusBtn';
+        statusBtn.textContent = '📊 Статус';
+        statusBtn.style.cssText = 'background:#8e44ad;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
+        statusBtn.onclick = showSyncStatus;
+        toolbar.appendChild(statusBtn);
+    }
+    if (!document.getElementById('downloadZipBtn')) {
+        const zipBtn = document.createElement('button');
+        zipBtn.id = 'downloadZipBtn';
+        zipBtn.textContent = '📦 Скачать всё ZIP';
+        zipBtn.style.cssText = 'background:#27ae60;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
+        zipBtn.onclick = downloadChangedSongsZip;
+        toolbar.appendChild(zipBtn);
+    }
+    // Обновляем иконку у песни (если есть)
+    updateEditorIcon();
 }
 
-// ====== СКРЫТЬ ИНТЕРФЕЙС РЕДАКТОРА ======
+// ====== СКРЫТЬ ИНТЕРФЕЙС ======
 function hideEditorUI() {
-    console.log('🖥️ hideEditorUI() вызвана');
-    const resetBtn = document.getElementById('resetEditsBtn');
-    if (resetBtn) {
-        resetBtn.remove();
-        console.log('✅ Кнопка "Сбросить" удалена');
-    }
+    // Удаляем только дополнительные кнопки (кроме основной)
+    ['addSongBtn', 'syncStatusBtn', 'downloadZipBtn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    });
 }
 
-// ====== ОБНОВИТЬ ИКОНКУ РЕДАКТИРОВАНИЯ ======
+// ====== ИКОНКА РЕДАКТИРОВАНИЯ У ПЕСНИ ======
 function updateEditorIcon() {
-    console.log('🔄 updateEditorIcon() вызвана, isEditorMode:', isEditorMode);
-    // Удаляем старые иконки
-    document.querySelectorAll('.edit-icon').forEach(el => {
-        console.log('🗑️ Удаляем старую иконку');
-        el.remove();
-    });
-    
-    if (!isEditorMode) {
-        console.log('ℹ️ Режим редактирования выключен, иконки не нужны');
-        return;
-    }
-    
-    // Добавляем иконку к активной песне
+    document.querySelectorAll('.edit-icon').forEach(el => el.remove());
+    if (!isEditorMode) return;
     const activeItem = document.querySelector('.song-item.active');
-    console.log('🔍 Активный элемент:', activeItem ? 'найден' : 'не найден');
-    
-    if (activeItem) {
-        const icon = document.createElement('button');
-        icon.className = 'edit-icon';
-        icon.textContent = '✏️';
-        icon.style.cssText = 'position:absolute;right:40px;top:50%;transform:translateY(-50%);font-size:20px;cursor:pointer;background:#f39c12;color:white;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:none;';
-        icon.onclick = (e) => {
-            console.log('✏️ Нажата иконка редактирования');
-            e.stopPropagation();
-            openEditorPanel();
-        };
-        activeItem.style.position = 'relative';
-        activeItem.appendChild(icon);
-        console.log('✅ Иконка добавлена к песне');
-    } else {
-        console.warn('⚠️ Активная песня не найдена');
-    }
+    if (!activeItem) return;
+    const icon = document.createElement('button');
+    icon.className = 'edit-icon';
+    icon.textContent = '✏️';
+    icon.style.cssText = 'position:absolute;right:40px;top:50%;transform:translateY(-50%);font-size:20px;cursor:pointer;background:#f39c12;color:white;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:none;';
+    icon.onclick = (e) => {
+        e.stopPropagation();
+        openEditorPanel();
+    };
+    activeItem.style.position = 'relative';
+    activeItem.appendChild(icon);
 }
 
 // ====== ОТКРЫТЬ ПАНЕЛЬ РЕДАКТОРА ======
 function openEditorPanel() {
-    console.log('📝 openEditorPanel() вызвана');
-    console.log('📌 isEditorMode:', isEditorMode);
-    console.log('📌 currentSongId:', currentSongId);
-    console.log('📌 songsList:', songsList ? songsList.length : 'нет');
-    
     if (!isEditorMode) {
-        console.warn('⚠️ Режим редактирования выключен');
-        alert('❌ Сначала включите режим редактирования (кнопка "Редактор")');
+        alert('❌ Сначала включите режим редактора (кнопка "Редактор")');
         return;
     }
-    
     if (!currentSongId) {
-        console.warn('⚠️ Нет выбранной песни');
         alert('❌ Сначала выберите песню!');
         return;
     }
-    
     const song = songsList.find(s => s.id === currentSongId);
-    if (!song) {
-        console.error('❌ Песня не найдена:', currentSongId);
-        alert('❌ Песня не найдена');
-        return;
-    }
-    
-    console.log('🎵 Найдена песня:', song.title);
-    
-    // СОХРАНЯЕМ ID ПЕСНИ В ГЛОБАЛЬНУЮ ПЕРЕМЕННУЮ
+    if (!song) return;
+
     editingSongId = currentSongId;
     editingFileName = song.fileName;
-    console.log('📌 editingSongId установлен:', editingSongId);
-    console.log('📌 editingFileName установлен:', editingFileName);
-    
-    // Берём текст: если есть правка — её, иначе оригинал
+
+    // Берём текст: если есть локальная правка — её, иначе оригинал
     const savedText = editedSongs[currentSongId] || currentRawOriginal;
-    console.log('📄 Текст для редактирования:', savedText ? savedText.substring(0, 50) + '...' : 'пусто');
-    
     document.getElementById('editSongTitle').textContent = `✏️ ${song.title}`;
     document.getElementById('editTextarea').value = savedText;
     document.getElementById('adminPanel').classList.add('active');
     document.body.style.overflow = 'hidden';
-    
-    setTimeout(() => {
-        document.getElementById('editTextarea').focus();
-    }, 300);
-    
-    console.log('✅ Панель редактора открыта');
+    setTimeout(() => document.getElementById('editTextarea').focus(), 300);
 }
 
-// ====== СОХРАНИТЬ ПРАВКУ ======
-function saveEditedSong() {
-    console.log('========================================');
-    console.log('📝 saveEditedSong() ВЫЗВАНА!');
-    console.log('📌 editingSongId:', editingSongId);
-    console.log('📌 typeof editingSongId:', typeof editingSongId);
-    console.log('📌 editingFileName:', editingFileName);
-    console.log('📌 currentSongId:', currentSongId);
-    console.log('========================================');
-    
-    // ПРОВЕРЯЕМ, ЧТО ПЕРЕМЕННАЯ ОПРЕДЕЛЕНА
-    if (typeof editingSongId === 'undefined') {
-        console.error('❌ editingSongId = undefined!');
-        alert('❌ Ошибка: переменная editingSongId не определена');
-        return;
-    }
-    
-    if (editingSongId === null) {
-        console.error('❌ editingSongId = null!');
-        alert('❌ Ошибка: не выбрана песня для редактирования');
-        return;
-    }
-    
+// ====== СОХРАНИТЬ ПЕСНЮ ======
+async function saveEditedSong() {
     if (!editingSongId) {
-        console.error('❌ editingSongId пустой!');
-        alert('❌ Ошибка: ID песни пустой');
+        alert('❌ Не выбрана песня');
         return;
     }
-    
-    console.log('✅ editingSongId валиден:', editingSongId);
-    
     const content = document.getElementById('editTextarea').value;
-    console.log('📄 Содержимое текста:', content ? content.substring(0, 50) + '...' : 'пусто');
-    
-    if (!content.trim()) {
-        console.warn('⚠️ Текст пустой');
-        if (!confirm('⚠️ Текст пустой! Сохранить пустую песню?')) {
-            console.log('❌ Сохранение отменено');
-            return;
+    if (!content.trim() && !confirm('⚠️ Текст пустой! Сохранить?')) return;
+
+    const song = songsList.find(s => s.id === editingSongId);
+    if (!song) return;
+
+    // Пытаемся сохранить на GitHub, если есть токен
+    let savedOnGitHub = false;
+    if (isTokenValid()) {
+        try {
+            await saveFileToGitHub(`songs/${song.fileName}`, content, `Обновление ${song.fileName}`);
+            savedOnGitHub = true;
+            // Удаляем локальную правку, если она есть
+            delete editedSongs[editingSongId];
+            saveEditedSongs();
+            console.log(`✅ Песня "${song.title}" сохранена на GitHub`);
+        } catch (e) {
+            console.warn('⚠️ Не удалось сохранить на GitHub:', e.message);
+            alert(`⚠️ Ошибка GitHub: ${e.message}. Песня сохранена локально.`);
+            savedOnGitHub = false;
         }
     }
-    
-    // Сохраняем правку в памяти и localStorage
-    console.log('💾 Сохраняем правку для:', editingSongId);
-    editedSongs[editingSongId] = content;
-    console.log('📝 editedSongs обновлён:', Object.keys(editedSongs));
-    saveEditedSongs();
-    
-    // Обновляем отображение
-    if (currentSongId === editingSongId) {
-        console.log('🔄 Перезагружаем песню с правками');
-        loadSongWithEdits(editingSongId);
-    } else {
-        console.warn('⚠️ currentSongId не совпадает с editingSongId');
+
+    // Если не сохранилось на GitHub — сохраняем локально
+    if (!savedOnGitHub) {
+        editedSongs[editingSongId] = content;
+        // Сохраняем оригинал, если его нет
+        const originalKey = editingSongId + '_original';
+        if (!editedSongs[originalKey]) {
+            editedSongs[originalKey] = currentRawOriginal;
+        }
+        saveEditedSongs();
+        console.log(`💾 Песня "${song.title}" сохранена локально`);
+        // Обновляем отображение (пометка появится)
+        renderSongList(document.getElementById('searchInput')?.value || '');
     }
-    
-    alert('✅ Правки сохранены!');
-    closeEditor(); // <-- ИСПРАВЛЕНО: теперь вызывается closeEditor()
-    console.log('✅ saveEditedSong() завершена');
-    console.log('========================================');
+
+    // Обновляем отображение песни
+    if (currentSongId === editingSongId) {
+        await loadSongWithEdits(editingSongId);
+    }
+
+    closeEditor();
+    alert(savedOnGitHub ? '✅ Песня сохранена на GitHub!' : '💾 Песня сохранена локально (не на GitHub)');
 }
 
-// ====== ЗАГРУЗИТЬ ПЕСНЮ С УЧЁТОМ ПРАВОК ======
+// ====== ЗАГРУЗКА ПЕСНИ С УЧЁТОМ ЛОКАЛЬНЫХ ПРАВОК ======
 async function loadSongWithEdits(songId) {
-    console.log('🔄 loadSongWithEdits() вызвана для:', songId);
     const song = songsList.find(s => s.id === songId);
-    if (!song) {
-        console.error('❌ Песня не найдена:', songId);
-        return;
-    }
-    
+    if (!song) return;
     try {
         const response = await fetch(`songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`);
         const originalText = await response.text();
-        console.log('📄 Оригинал загружен, длина:', originalText.length);
-        
-        // Сохраняем оригинал, если ещё не сохранён
+
         const originalKey = songId + '_original';
         if (!editedSongs[originalKey]) {
             editedSongs[originalKey] = originalText;
             saveEditedSongs();
-            console.log('💾 Оригинал сохранён');
         }
-        
-        // Берём правку или оригинал
+
         const displayText = editedSongs[songId] || originalText;
-        console.log('📄 Текст для отображения:', displayText ? displayText.substring(0, 50) + '...' : 'пусто');
-        
         currentRawOriginal = displayText;
         currentSongId = songId;
         transposeShift = songTransposes[songId] || 0;
         updateSongDisplay();
-        
-        // Обновляем иконку
         updateEditorIcon();
-        console.log('✅ loadSongWithEdits() завершена');
-        
     } catch (e) {
-        console.error('❌ Ошибка загрузки песни:', e);
+        console.error('Ошибка загрузки песни:', e);
     }
 }
 
-// ====== СБРОСИТЬ ПРАВКИ ТЕКУЩЕЙ ПЕСНИ ======
-function resetCurrentSong() {
-    console.log('🔄 resetCurrentSong() вызвана');
-    if (!currentSongId) {
-        console.warn('⚠️ Нет выбранной песни');
-        alert('❌ Нет выбранной песни');
+// ====== ДОБАВЛЕНИЕ НОВОЙ ПЕСНИ ======
+async function createNewSong() {
+    if (!isEditorMode) {
+        alert('❌ Сначала включите режим редактора');
         return;
     }
-    
-    if (!confirm('❗ Вернуть оригинальный текст песни?')) {
-        console.log('❌ Сброс отменён');
+
+    const title = prompt('🎵 Введите название песни:');
+    if (!title) return;
+    const artist = prompt('🎤 Введите исполнителя:');
+    if (!artist) return;
+
+    // Формируем имя файла
+    const fileName = `${artist} - ${title}.txt`.replace(/[^а-яА-Яa-zA-Z0-9 \-]/g, '');
+    if (!fileName) {
+        alert('❌ Некорректное имя файла');
         return;
     }
-    
-    const originalKey = currentSongId + '_original';
-    console.log('🔍 Ищем оригинал по ключу:', originalKey);
-    
-    if (editedSongs[originalKey]) {
-        // Удаляем правку
-        delete editedSongs[currentSongId];
-        saveEditedSongs();
-        console.log('🗑️ Правка удалена');
-        
-        // Загружаем оригинал
-        loadSongWithEdits(currentSongId);
-        alert('✅ Оригинальный текст восстановлен');
-    } else {
-        console.warn('⚠️ Оригинал не найден');
-        alert('❌ Оригинал не найден');
-    }
-}
 
-// ====== ЗАКРЫТЬ ПАНЕЛЬ РЕДАКТОРА (ОСНОВНАЯ ФУНКЦИЯ) ======
-function closeEditor() {
-    console.log('🔒 closeEditor() вызвана');
-    const panel = document.getElementById('adminPanel');
-    if (panel) {
-        panel.classList.remove('active');
-    }
-    document.body.style.overflow = 'auto';
-    editingSongId = null;
-    editingFileName = null;
-    console.log('📌 editingSongId сброшен в null');
-}
+    // Шаблон
+    const template = `[Куплет 1]\n\n[Am]Текст песни...\n\n[Припев]\n\n[Am]Текст припева...`;
 
-// ====== АЛИАС ДЛЯ СОВМЕСТИМОСТИ ======
-// Если в HTML используется closeEditorPanel, то она будет работать
-function closeEditorPanel() {
-    console.log('🔒 closeEditorPanel() вызвана (алиас)');
-    closeEditor();
-}
-
-// ====== ПЕРЕХВАТЫВАЕМ ЗАГРУЗКУ ПЕСЕН (сохраняем оригиналы) ======
-console.log('🔄 Перехват loadSongById...');
-
-// Сохраняем оригинальную функцию
-const originalLoadSong = window.loadSongById;
-
-if (typeof originalLoadSong === 'function') {
-    console.log('✅ Оригинальная loadSongById найдена');
-    
-    window.loadSongById = async function(id, saveToStorage, forceRefresh) {
-        console.log('🔄 loadSongById (перехвачен) вызвана для:', id);
-        await originalLoadSong(id, saveToStorage, forceRefresh);
-        console.log('✅ Оригинальная loadSongById выполнена');
-        
-        // Сохраняем оригинал
-        if (currentSongId && currentRawOriginal) {
-            const originalKey = currentSongId + '_original';
-            if (!editedSongs[originalKey]) {
-                editedSongs[originalKey] = currentRawOriginal;
-                saveEditedSongs();
-                console.log('💾 Оригинал сохранён (из перехвата)');
-            }
-            
-            // Если есть правка — применяем её
-            if (editedSongs[currentSongId]) {
-                console.log('🔄 Применяем правку:', editedSongs[currentSongId].substring(0, 30) + '...');
-                currentRawOriginal = editedSongs[currentSongId];
-                updateSongDisplay();
-            }
-        }
-        
-        updateEditorIcon();
-        console.log('✅ loadSongById (перехвачен) завершена');
+    // Создаём объект песни
+    const newSong = {
+        id: `song_${songsList.length}`,
+        title: title,
+        artist: artist,
+        fileName: fileName,
+        originUrl: null
     };
-} else {
-    console.warn('⚠️ Оригинальная loadSongById не найдена!');
-}
 
-// ====== КНОПКА СИНХРОНИЗАЦИИ ======
-
-function getChangedSongs() {
-    const changed = [];
-    for (const song of songsList) {
-        const originalKey = song.id + '_original';
-        const savedText = editedSongs[song.id];
-        const originalText = editedSongs[originalKey];
-        if (savedText && originalText && savedText !== originalText) {
-            changed.push({
-                id: song.id,
-                title: song.title,
-                artist: song.artist,
-                fileName: song.fileName
-            });
+    // Пытаемся сохранить на GitHub
+    let savedOnGitHub = false;
+    if (isTokenValid()) {
+        try {
+            // 1. Сохраняем файл песни
+            await saveFileToGitHub(`songs/${fileName}`, template, `Добавлена песня: ${fileName}`);
+            // 2. Обновляем CSV
+            const csvLine = `"${artist}","${title}","${fileName}"\n`;
+            await appendToCSV(csvLine);
+            savedOnGitHub = true;
+            console.log(`✅ Новая песня "${title}" создана на GitHub`);
+        } catch (e) {
+            console.warn('⚠️ Не удалось сохранить на GitHub:', e.message);
+            alert(`⚠️ Ошибка GitHub: ${e.message}. Песня сохранена локально.`);
+            savedOnGitHub = false;
         }
     }
-    return changed;
-}
 
-function showSyncStatus() {
-    const changed = getChangedSongs();
-    
-    if (changed.length === 0) {
-        alert('✅ Все песни синхронизированы с GitHub.\n\nЛокальные изменения отсутствуют.');
-        return;
+    if (!savedOnGitHub) {
+        // Сохраняем локально
+        songsList.push(newSong);
+        editedSongs[newSong.id] = template;
+        editedSongs[newSong.id + '_original'] = template;
+        saveEditedSongs();
+        // Сохраняем в custom_songs для постоянства
+        const custom = JSON.parse(localStorage.getItem('custom_songs') || '[]');
+        custom.push(newSong);
+        localStorage.setItem('custom_songs', JSON.stringify(custom));
+        console.log(`💾 Новая песня "${title}" сохранена локально`);
     }
-    
-    let msg = '📝 ИЗМЕНЕНЫ (в локальном хранилище):\n\n';
-    changed.forEach((s, i) => {
-        msg += `${i+1}. ${s.artist} — ${s.title}\n`;
-    });
-    
-    msg += '\n🔄 ЧТО ДЕЛАТЬ:\n';
-    msg += '1. Включите режим "Правка" у песни\n';
-    msg += '2. Скопируйте текст из редактора\n';
-    msg += '3. На GitHub откройте файл и вставьте текст\n';
-    msg += '4. Сохраните изменения на GitHub\n';
-    msg += '5. Нажмите "⟳ Обновить" в песеннике';
-    
-    alert(msg);
+
+    // Перерисовываем список и выбираем новую песню
+    renderSongList(document.getElementById('searchInput')?.value || '');
+    await loadSongWithEdits(newSong.id);
+    alert(savedOnGitHub ? '✅ Песня создана на GitHub!' : '💾 Песня создана локально (не на GitHub)');
+    // Открываем редактор для новой песни
+    openEditorPanel();
 }
 
-// Добавляем кнопку
-function addSyncButtonToUI() {
-    const toolbar = document.querySelector('.toolbar .controls');
-    if (!toolbar || document.getElementById('syncStatusBtn')) return;
-    
-    const btn = document.createElement('button');
-    btn.id = 'syncStatusBtn';
-    btn.textContent = '📊 Статус';
-    btn.style.cssText = 'background:#8e44ad;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
-    btn.onclick = showSyncStatus;
-    toolbar.appendChild(btn);
+// ====== ОБНОВЛЕНИЕ CSV ======
+async function appendToCSV(line) {
+    const path = 'songs.csv';
+    const sha = await getFileSha(path);
+    let currentContent = '';
+    if (sha) {
+        const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path}`, {
+            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+        });
+        const data = await res.json();
+        currentContent = atob(data.content);
+    }
+    const newContent = currentContent + line;
+    await saveFileToGitHub(path, newContent, 'Обновление списка песен');
 }
 
-// Расширяем showEditorUI
-const originalShowUI = showEditorUI;
-showEditorUI = function() {
-    originalShowUI();
-    addSyncButtonToUI();
-};
-
-// ============================================================
-//  ОТСЛЕЖИВАНИЕ И СИНХРОНИЗАЦИЯ С GITHUB
-// ============================================================
-
-// ====== ПОЛУЧИТЬ СПИСОК ИЗМЕНЁННЫХ ПЕСЕН ======
+// ====== СТАТУС И СКАЧИВАНИЕ ZIP (как раньше) ======
 function getChangedSongs() {
     const changed = [];
     for (const song of songsList) {
         const originalKey = song.id + '_original';
         const savedText = editedSongs[song.id];
         const originalText = editedSongs[originalKey];
-        
-        // Если есть сохранённая версия и она отличается от оригинала
         if (savedText && originalText && savedText !== originalText) {
             changed.push({
                 id: song.id,
@@ -493,86 +407,53 @@ function getChangedSongs() {
     return changed;
 }
 
-// ====== ПОКАЗАТЬ СТАТУС ИЗМЕНЕНИЙ ======
 function showSyncStatus() {
     const changed = getChangedSongs();
-    
     if (changed.length === 0) {
-        alert('✅ Все песни синхронизированы с GitHub.\n\nЛокальные изменения отсутствуют.');
+        alert('✅ Все песни синхронизированы с GitHub.');
         return;
     }
-    
-    let msg = '📝 ИЗМЕНЕНЫ (в локальном хранилище):\n\n';
+    let msg = '📝 Локально изменены:\n\n';
     changed.forEach((s, i) => {
         msg += `${i+1}. ${s.artist} — ${s.title}\n`;
     });
-    
-    msg += '\n📦 Нажмите "Скачать всё ZIP" чтобы скачать все изменённые песни.\n';
-    msg += '🔄 Затем загрузите файлы на GitHub.';
-    
+    msg += '\n📦 Нажмите "Скачать всё ZIP" для скачивания.';
     alert(msg);
-    
-    // Показываем количество изменений в консоли
-    console.log(`📝 Изменено песен: ${changed.length}`);
-    changed.forEach(s => console.log(`   - ${s.artist} — ${s.title}`));
-    
-    return changed;
 }
 
-// ====== СКАЧАТЬ ВСЕ ИЗМЕНЁННЫЕ ПЕСНИ ZIP-ОМ ======
 async function downloadChangedSongsZip() {
     const changed = getChangedSongs();
-    
     if (changed.length === 0) {
-        alert('✅ Нет изменённых песен для скачивания.');
+        alert('✅ Нет локальных изменений.');
         return;
     }
-    
-    // Проверяем, есть ли библиотека JSZip
     if (typeof JSZip === 'undefined') {
-        alert('⚠️ Библиотека JSZip не загружена. Загружаем...');
-        // Загружаем JSZip
         await loadJSZip();
     }
-    
     try {
         const zip = new JSZip();
-        
         for (const song of changed) {
-            // Добавляем файл в ZIP
             zip.file(song.fileName, song.text);
-            console.log(`📄 Добавлен: ${song.fileName}`);
         }
-        
-        // Создаём ZIP и скачиваем
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(zipBlob);
         const date = new Date().toISOString().slice(0,10);
-        
         link.href = url;
         link.download = `changed_songs_${date}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        
-        alert(`✅ Скачано ${changed.length} изменённых песен в ZIP-архиве!\n\n🔄 Теперь загрузите файлы на GitHub.`);
-        console.log(`📦 ZIP скачан, песен: ${changed.length}`);
-        
+        alert(`✅ ZIP скачан (${changed.length} песен).`);
     } catch (e) {
-        console.error('❌ Ошибка создания ZIP:', e);
-        alert('❌ Ошибка при создании ZIP: ' + e.message);
+        alert('❌ Ошибка: ' + e.message);
     }
 }
 
-// ====== ЗАГРУЗИТЬ JSZip (если нет) ======
 function loadJSZip() {
     return new Promise((resolve, reject) => {
-        if (typeof JSZip !== 'undefined') {
-            resolve();
-            return;
-        }
+        if (typeof JSZip !== 'undefined') { resolve(); return; }
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
         script.onload = resolve;
@@ -581,84 +462,61 @@ function loadJSZip() {
     });
 }
 
-// ====== ОБНОВИТЬ ОРИГИНАЛЫ ПРИ ЗАГРУЗКЕ С GITHUB ======
-// Переопределяем loadSongById для обновления оригиналов
-const originalLoadSongForSync = window.loadSongById || loadSongById;
-
+// ====== ПЕРЕХВАТ ЗАГРУЗКИ ПЕСЕН ДЛЯ ОБНОВЛЕНИЯ ОРИГИНАЛОВ ======
+const originalLoadSong = window.loadSongById || loadSongById;
 window.loadSongById = async function(id, saveToStorage, forceRefresh) {
-    // Вызываем оригинальную функцию
-    await originalLoadSongForSync(id, saveToStorage, forceRefresh);
-    
-    // Обновляем оригинал из загруженного текста
+    await originalLoadSong(id, saveToStorage, forceRefresh);
     if (currentSongId && currentRawOriginal) {
         const originalKey = currentSongId + '_original';
-        // Перезаписываем оригинал актуальным текстом с GitHub
         editedSongs[originalKey] = currentRawOriginal;
-        
-        // Если есть правка — она остаётся, если нет — удаляем
         if (editedSongs[currentSongId] && editedSongs[currentSongId] === currentRawOriginal) {
-            // Если правка совпадает с оригиналом — удаляем
             delete editedSongs[currentSongId];
         }
-        
         saveEditedSongs();
-        console.log('🔄 Оригинал обновлён:', currentSongId);
     }
-    
     updateEditorIcon();
 };
 
-// ====== ДОБАВИТЬ КНОПКИ В ИНТЕРФЕЙС ======
-function addSyncButtons() {
-    const toolbar = document.querySelector('.toolbar .controls');
-    if (!toolbar) return;
-    
-    // Кнопка "📊 Статус"
-    if (!document.getElementById('syncStatusBtn')) {
-        const statusBtn = document.createElement('button');
-        statusBtn.id = 'syncStatusBtn';
-        statusBtn.textContent = '📊 Статус';
-        statusBtn.style.cssText = 'background:#8e44ad;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
-        statusBtn.onclick = showSyncStatus;
-        toolbar.appendChild(statusBtn);
-        console.log('✅ Кнопка "Статус" добавлена');
-    }
-    
-    // Кнопка "📦 Скачать всё ZIP"
-    if (!document.getElementById('downloadZipBtn')) {
-        const zipBtn = document.createElement('button');
-        zipBtn.id = 'downloadZipBtn';
-        zipBtn.textContent = '📦 Скачать всё ZIP';
-        zipBtn.style.cssText = 'background:#27ae60;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
-        zipBtn.onclick = downloadChangedSongsZip;
-        toolbar.appendChild(zipBtn);
-        console.log('✅ Кнопка "Скачать всё ZIP" добавлена');
-    }
-}
-
-// ====== РАСШИРЯЕМ showEditorUI ======
-const originalShowEditorUI2 = showEditorUI;
-showEditorUI = function() {
-    originalShowEditorUI2();
-    addSyncButtons();
+// ====== РАСШИРЕННЫЙ RENDER ДЛЯ ПОМЕТОК ======
+const originalRender = renderSongList;
+renderSongList = function(filterText) {
+    originalRender(filterText);
+    // Добавляем пометки о локальных правках
+    document.querySelectorAll('.song-item').forEach(item => {
+        const id = item.dataset.id;
+        if (id && editedSongs[id]) {
+            // Проверяем, что это не оригинал
+            const originalKey = id + '_original';
+            if (editedSongs[originalKey] && editedSongs[id] !== editedSongs[originalKey]) {
+                // Удаляем старую пометку
+                const old = item.querySelector('.local-badge');
+                if (old) old.remove();
+                const badge = document.createElement('span');
+                badge.className = 'local-badge';
+                badge.textContent = '💾 локально';
+                badge.style.cssText = 'position:absolute;right:75px;top:50%;transform:translateY(-50%);background:#e67e22;color:white;font-size:0.65rem;padding:2px 8px;border-radius:20px;font-weight:bold;';
+                item.style.position = 'relative';
+                item.appendChild(badge);
+            }
+        }
+    });
 };
 
 // ====== ИНИЦИАЛИЗАЦИЯ ======
-console.log('🔄 Модуль синхронизации загружен');
-console.log('📊 Нажмите "Статус" для просмотра изменённых песен');
-console.log('📦 Нажмите "Скачать всё ZIP" для скачивания изменений');
-
-// ====== ИНИЦИАЛИЗАЦИЯ ======
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 DOM загружен, инициализация редактора...');
     loadEditedSongs();
     addEditorButton();
-    console.log('📝 Простой редактор загружен!');
-    console.log('🔑 Пароль:', EDITOR_PASSWORD);
-    console.log('💾 Правок в памяти:', Object.keys(editedSongs).length);
-    console.log('📌 editingSongId:', editingSongId);
-    console.log('📌 isEditorMode:', isEditorMode);
-    console.log('✅ Инициализация завершена');
+    // Если токен есть — сразу включаем режим
+    if (isTokenValid()) {
+        isEditorMode = true;
+        const btn = document.getElementById('editorToggleBtn');
+        if (btn) {
+            btn.textContent = '🔒 Закрыть';
+            btn.style.background = '#e74c3c';
+        }
+        showEditorUI();
+        console.log('✅ Автовход по токену');
+    }
+    console.log('📝 Редактор загружен');
+    console.log('🔑 Токен:', isTokenValid() ? '✅ есть' : '❌ нет');
 });
-
-console.log('📂 editor.js полностью загружен');
