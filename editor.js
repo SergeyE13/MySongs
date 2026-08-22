@@ -132,7 +132,7 @@ function toggleEditor() {
         document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
         document.getElementById('editorToggleBtn').style.background = '#f39c12';
         hideEditorUI();
-        closeEditorPanel(); // <-- ИСПРАВЛЕНО
+        closeEditorPanel();
     }
 }
 
@@ -216,6 +216,45 @@ function openEditorPanel() {
     setTimeout(() => document.getElementById('editTextarea').focus(), 300);
 }
 
+// ====== ОБНОВЛЕНИЕ ТЕКУЩЕЙ ПЕСНИ С GITHUB ======
+async function refreshCurrentSongFromGitHub() {
+    if (!editingSongId) return;
+    
+    const song = songsList.find(s => s.id === editingSongId);
+    if (!song) return;
+    
+    try {
+        // Загружаем свежий текст с GitHub
+        const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Не удалось загрузить');
+        const freshText = await response.text();
+        
+        // Обновляем оригинал
+        const originalKey = editingSongId + '_original';
+        editedSongs[originalKey] = freshText;
+        
+        // Если есть локальная правка — удаляем (она уже сохранена на GitHub)
+        delete editedSongs[editingSongId];
+        saveEditedSongs();
+        
+        // Обновляем отображение
+        currentRawOriginal = freshText;
+        currentSongId = editingSongId;
+        updateSongDisplay();
+        
+        // Обновляем иконку
+        updateEditorIcon();
+        
+        // Перерисовываем список (чтобы убрать пометку "локально")
+        renderSongList(document.getElementById('searchInput')?.value || '');
+        
+        console.log(`✅ Песня "${song.title}" обновлена с GitHub`);
+    } catch (e) {
+        console.warn('⚠️ Не удалось обновить песню с GitHub:', e.message);
+    }
+}
+
 // ====== СОХРАНИТЬ ПЕСНЮ ======
 async function saveEditedSong() {
     if (!editingSongId) {
@@ -233,8 +272,6 @@ async function saveEditedSong() {
         try {
             await saveFileToGitHub(`songs/${song.fileName}`, content, `Обновление ${song.fileName}`);
             savedOnGitHub = true;
-            delete editedSongs[editingSongId];
-            saveEditedSongs();
             console.log(`✅ Песня "${song.title}" сохранена на GitHub`);
         } catch (e) {
             console.warn('⚠️ Не удалось сохранить на GitHub:', e.message);
@@ -244,6 +281,7 @@ async function saveEditedSong() {
     }
 
     if (!savedOnGitHub) {
+        // Сохраняем локально
         editedSongs[editingSongId] = content;
         const originalKey = editingSongId + '_original';
         if (!editedSongs[originalKey]) {
@@ -254,12 +292,20 @@ async function saveEditedSong() {
         renderSongList(document.getElementById('searchInput')?.value || '');
     }
 
-    if (currentSongId === editingSongId) {
-        await loadSongWithEdits(editingSongId);
-    }
+    // Закрываем редактор
+    closeEditorPanel();
 
-    closeEditorPanel(); // <-- ИСПРАВЛЕНО
-    alert(savedOnGitHub ? '✅ Песня сохранена на GitHub!' : '💾 Песня сохранена локально (не на GitHub)');
+    if (savedOnGitHub) {
+        // Если сохранилось на GitHub — обновляем с GitHub
+        alert('✅ Песня сохранена на GitHub!');
+        await refreshCurrentSongFromGitHub();
+    } else {
+        // Если сохранилось локально — обновляем из локального хранилища
+        if (currentSongId === editingSongId) {
+            await loadSongWithEdits(editingSongId);
+        }
+        alert('💾 Песня сохранена локально (не на GitHub)');
+    }
 }
 
 // ====== ЗАГРУЗКА ПЕСНИ С УЧЁТОМ ЛОКАЛЬНЫХ ПРАВОК ======
