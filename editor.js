@@ -259,9 +259,12 @@ async function saveEditedSong() {
     const song = songsList.find(s => s.id === editingSongId);
     if (!song) return;
 
+    // Закрываем редактор
     closeEditorPanel();
 
+    // Проверяем токен
     if (!isTokenValid()) {
+        // Токена нет — сохраняем локально
         editedSongs[editingSongId] = content;
         const originalKey = editingSongId + '_original';
         if (!editedSongs[originalKey]) {
@@ -274,6 +277,7 @@ async function saveEditedSong() {
         return;
     }
 
+    // Пытаемся сохранить на GitHub
     let savedOnGitHub = false;
     try {
         await saveFileToGitHub(`songs/${song.fileName}`, content, `Обновление ${song.fileName}`);
@@ -285,12 +289,52 @@ async function saveEditedSong() {
     }
 
     if (savedOnGitHub) {
+        // Удаляем локальную копию
         delete editedSongs[editingSongId];
         saveEditedSongs();
+        
         alert('✅ Песня сохранена на GitHub!');
-        await loadSongFromGitHub(editingSongId);
-        renderSongList(document.getElementById('searchInput')?.value || '');
+        
+        // Сохраняем ID песни для обновления
+        const songIdToRefresh = editingSongId;
+        const songTitle = song.title;
+        const fileName = song.fileName;
+        
+        // ПРИНУДИТЕЛЬНО ЗАГРУЖАЕМ СВЕЖУЮ ВЕРСИЮ
+        console.log(`🔄 Принудительная загрузка "${songTitle}" с GitHub...`);
+        
+        try {
+            const url = `songs/${encodeURIComponent(fileName)}?t=${Date.now()}`;
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache' }
+            });
+            if (!response.ok) throw new Error('Не удалось загрузить');
+            const freshText = await response.text();
+            
+            // Обновляем оригинал
+            const originalKey = songIdToRefresh + '_original';
+            editedSongs[originalKey] = freshText;
+            delete editedSongs[songIdToRefresh];
+            saveEditedSongs();
+            
+            // Обновляем отображение
+            currentRawOriginal = freshText;
+            currentSongId = songIdToRefresh;
+            transposeShift = songTransposes[songIdToRefresh] || 0;
+            
+            // ====== ПЕРЕРИСОВЫВАЕМ ======
+            updateSongDisplay();
+            renderSongList(document.getElementById('searchInput')?.value || '');
+            
+            console.log(`✅ Песня "${songTitle}" обновлена в браузере`);
+        } catch (e) {
+            console.warn('⚠️ Не удалось обновить песню:', e.message);
+            // Если не удалось загрузить с GitHub — показываем локальную версию
+            await loadSongWithEdits(songIdToRefresh);
+        }
     } else {
+        // Ошибка — сохраняем локально
         editedSongs[editingSongId] = content;
         const originalKey = editingSongId + '_original';
         if (!editedSongs[originalKey]) {
