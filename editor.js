@@ -1,7 +1,10 @@
 ﻿// ====== ВОССТАНОВЛЕНИЕ ПЕСНИ ПОСЛЕ ПЕРЕЗАГРУЗКИ ======
 function restoreSongAfterReload() {
     const songId = localStorage.getItem('song_to_restore');
-    if (!songId) return;
+    if (!songId) {
+        console.log('ℹ️ Нет сохранённой песни для восстановления');
+        return;
+    }
     
     localStorage.removeItem('song_to_restore');
     console.log(`🔄 Восстановление песни с ID: ${songId}`);
@@ -21,7 +24,7 @@ function restoreSongAfterReload() {
             return false;
         }
         
-        console.log(`✅ Найдена песня: ${song.title}, загружаем...`);
+        console.log(`✅ Найдена песня: "${song.title}", загружаем с GitHub...`);
         
         // ЗАГРУЖАЕМ ПЕСНЮ С GITHUB
         loadSongById(songId, true, true);
@@ -29,16 +32,20 @@ function restoreSongAfterReload() {
     }
     
     // Пытаемся загрузить сразу
-    if (tryLoadSong()) return;
+    if (tryLoadSong()) {
+        console.log('✅ Песня восстановлена сразу');
+        return;
+    }
     
     // Если не получилось — ждём загрузки списка
     let attempts = 0;
-    const maxAttempts = 20; // 2 секунды максимум
+    const maxAttempts = 30; // 3 секунды максимум
     
     const interval = setInterval(() => {
         attempts++;
         if (tryLoadSong()) {
             clearInterval(interval);
+            console.log(`✅ Песня восстановлена после ${attempts} попыток`);
             return;
         }
         if (attempts >= maxAttempts) {
@@ -47,3 +54,30 @@ function restoreSongAfterReload() {
         }
     }, 100);
 }
+
+// ====== ИНИЦИАЛИЗАЦИЯ ======
+document.addEventListener('DOMContentLoaded', function() {
+    loadEditedSongs();
+    addEditorButton();
+    
+    document.getElementById('addSongBtn').addEventListener('click', createNewSong);
+    document.getElementById('syncStatusBtn').addEventListener('click', showSyncStatus);
+    document.getElementById('downloadZipBtn').addEventListener('click', downloadChangedSongsZip);
+    
+    showSidebarButtons();
+    
+    if (isTokenValid()) {
+        console.log('✅ Токен найден, редактор активен');
+    } else {
+        console.log('ℹ️ Токен не найден, редактор работает в локальном режиме');
+    }
+    
+    console.log('📝 Редактор загружен');
+    console.log('🔑 Токен:', isTokenValid() ? '✅ есть' : '❌ нет');
+    
+    // Восстанавливаем песню после перезагрузки
+    // Даём небольшую задержку для загрузки списка песен
+    setTimeout(() => {
+        restoreSongAfterReload();
+    }, 200);
+});
