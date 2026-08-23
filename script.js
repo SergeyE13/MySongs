@@ -555,7 +555,6 @@ function updateSongDisplay() {
     titleHtml += `</div>`;
     document.getElementById('songView').innerHTML = titleHtml + formatSongWithChordsFixed(transposedRaw);
     document.getElementById('transposeAmount').innerText = transposeShift;
-    updateCapoDisplay();
     const songView = document.querySelector('.song-view');
     if (songView) songView.scrollTop = 0;
 }
@@ -575,25 +574,6 @@ function resetTranspose() {
     transposeShift = 0;
     updateSongDisplay();
     saveCurrentTranspose();
-}
-
-// ====== КАПОДАСТР ======
-function getCapo() {
-    const capo = transposeShift > 0 ? transposeShift : 0;
-    return capo;
-}
-
-function updateCapoDisplay() {
-    const el = document.getElementById('capoDisplay');
-    if (!el) return;
-    const capo = getCapo();
-    if (capo > 0) {
-        el.textContent = `🎸 Капо ${capo}`;
-        el.style.display = '';
-    } else {
-        el.textContent = '';
-        el.style.display = 'none';
-    }
 }
 
 // ====== ПЕРЕХОД ПО КУПЛЕТАМ ======
@@ -680,7 +660,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshCsvBtn').addEventListener('click', refreshSongsList);
     document.getElementById('verseNavUpBtn').addEventListener('click', goToPrevSection);
     document.getElementById('verseNavDownBtn').addEventListener('click', goToNextSection);
-    updateCapoDisplay();
     window.addEventListener('resize', () => { if (window.innerWidth > 720) closeSidebar(); });
     
     debugLog('✅ Инициализация завершена');

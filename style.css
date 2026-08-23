@@ -398,20 +398,6 @@ body {
 /* ====== КНОПКИ ТУЛБАРА ====== */
 .secondary-btn { background: #6c757d; }
 .secondary-btn:hover { background: #5a6268; }
-.capo-display {
-    background: #2e7d64;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 40px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 600;
-    font-family: system-ui, sans-serif;
-    -webkit-tap-highlight-color: transparent;
-    white-space: nowrap;
-}
-.capo-display:active { transform: scale(0.95); }
 
 /* ====== ШАПКА РЕДАКТОРА ====== */
 .admin-header {
