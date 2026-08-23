@@ -289,6 +289,7 @@ async function saveEditedSong() {
         saveEditedSongs();
         alert('✅ Песня сохранена на GitHub!');
         await loadSongFromGitHub(editingSongId);
+        renderSongList(document.getElementById('searchInput')?.value || '');
     } else {
         editedSongs[editingSongId] = content;
         const originalKey = editingSongId + '_original';
