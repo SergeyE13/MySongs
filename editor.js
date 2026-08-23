@@ -1,5 +1,9 @@
 ﻿// ============================================================
 //  РЕДАКТОР С АВТОСОХРАНЕНИЕМ НА GITHUB
+//  Токен хранится в localStorage.
+//  Кнопки в сайдбаре видны всегда.
+//  При сохранении: сначала GitHub, потом localStorage (как fallback)
+//  Восстановление песни после перезагрузки через sessionStorage
 // ============================================================
 
 console.log('📂 editor.js загружен');
@@ -245,9 +249,9 @@ async function saveEditedSong() {
         
         alert('✅ Песня сохранена на GitHub!');
         
-        // ====== СОХРАНЯЕМ ИМЯ ФАЙЛА ======
+        // ====== СОХРАНЯЕМ ИМЯ ФАЙЛА В sessionStorage ======
         const fileNameToRestore = song.fileName;
-        localStorage.setItem('song_to_restore', fileNameToRestore);
+        sessionStorage.setItem('song_to_restore', fileNameToRestore);
         console.log(`🔄 Сохранено имя файла для восстановления: ${fileNameToRestore}`);
         
         console.log(`🔄 Перезагрузка страницы...`);
@@ -317,8 +321,8 @@ async function createNewSong() {
         console.log(`💾 Новая песня "${title}" сохранена локально`);
     } else {
         songsList.push(newSong);
-        // Сохраняем имя файла для восстановления
-        localStorage.setItem('song_to_restore', fileName);
+        // Сохраняем имя файла в sessionStorage
+        sessionStorage.setItem('song_to_restore', fileName);
     }
 
     renderSongList(document.getElementById('searchInput')?.value || '');
@@ -461,13 +465,12 @@ renderSongList = function(filterText) {
 
 // ====== ВОССТАНОВЛЕНИЕ ПЕСНИ ПОСЛЕ ПЕРЕЗАГРУЗКИ ======
 function restoreSongAfterReload() {
-    const fileName = localStorage.getItem('song_to_restore');
+    const fileName = sessionStorage.getItem('song_to_restore');
     if (!fileName) {
         console.log('ℹ️ Нет сохранённой песни для восстановления');
         return;
     }
     
-    localStorage.removeItem('song_to_restore');
     console.log(`🔄 Восстановление песни с именем файла: ${fileName}`);
     
     function tryLoadSong() {
@@ -484,6 +487,9 @@ function restoreSongAfterReload() {
         
         console.log(`✅ Найдена песня: "${song.title}", загружаем с GitHub...`);
         loadSongById(song.id, true, true);
+        
+        // Удаляем после успешной загрузки
+        sessionStorage.removeItem('song_to_restore');
         return true;
     }
     
@@ -505,6 +511,7 @@ function restoreSongAfterReload() {
         if (attempts >= maxAttempts) {
             clearInterval(interval);
             console.warn('⚠️ Не удалось восстановить песню после перезагрузки');
+            sessionStorage.removeItem('song_to_restore');
         }
     }, 100);
 }
