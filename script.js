@@ -12,20 +12,22 @@ const STORAGE_LAST_SONG = 'songbook_last_song';
 function isChordLike(str) {
     str = str.trim();
     if (str === "") return false;
-    
-    // Если есть русские буквы - это не аккорд
     if (/[а-яА-Я]/.test(str)) return false;
-    
-    // Убираем бас-ноту (всё что после /)
     let baseChord = str.split('/')[0].trim();
     if (baseChord === "") return false;
-    
-    // Простая проверка: аккорд начинается с буквы A-G или H
-    // и может содержать #, b, цифры и буквенные суффиксы
-    const pattern = /^[A-GH][#b]?[0-9]*(?:maj|min|m|sus|add|dim|aug|\+|-)?[0-9]*$/i;
-    
+    const pattern = /^[A-GH][#b]?(?:maj|min|m|sus|add|dim|aug|\+|-)?[0-9]*(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?$/i;
     if (!pattern.test(baseChord)) return false;
-    
+    const allowedSuffixes = ['maj', 'min', 'm', 'sus', 'add', 'dim', 'aug'];
+    const chordWithoutRoot = baseChord.replace(/^[A-GH][#b]?/, '');
+    if (chordWithoutRoot.length > 0) {
+        let testStr = chordWithoutRoot;
+        for (const suffix of allowedSuffixes) {
+            testStr = testStr.replace(new RegExp(suffix, 'ig'), '');
+        }
+        if (testStr && !/^[0-9+\-]*$/.test(testStr)) {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -183,11 +185,126 @@ function isValidUrl(str) {
     }
 }
 
+// ====== АСИНХРОННАЯ ПРОВЕРКА ОБНОВЛЕНИЙ НА GITHUB ======
+async function checkForUpdates(id) {
+    const song = songsList.find(s => s.id === id);
+    if (!song) return;
+    
+    try {
+        const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
+        const response = await fetch(url, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+        });
+        if (!response.ok) return;
+        
+        const freshText = await response.text();
+        const localText = editedSongs && editedSongs[id] ? editedSongs[id] : null;
+        
+        if (localText && localText === freshText) {
+            delete editedSongs[id];
+            if (typeof saveEditedSongs === 'function') saveEditedSongs();
+            
+            if (currentSongId === id) {
+                renderSongList(document.getElementById('searchInput')?.value || '');
+                console.log(`✅ Песня "${song.title}" синхронизирована, пометка удалена`);
+            }
+        } else if (localText && localText !== freshText) {
+            console.log(`🔄 Песня "${song.title}" ещё не синхронизирована с GitHub, повторная проверка через 3 сек...`);
+            setTimeout(() => checkForUpdates(id), 3000);
+        }
+    } catch (e) {
+        console.warn('⚠️ Ошибка проверки обновлений:', e);
+        setTimeout(() => checkForUpdates(id), 5000);
+    }
+}
+
+// ====== ЗАГРУЗКА ПЕСНИ (ПРИОРИТЕТ ЛОКАЛЬНОЙ ВЕРСИИ) ======
+async function loadSongById(id, saveToStorage = true, forceRefresh = false) {
+    const song = songsList.find(s => s.id === id);
+    if (!song) return;
+    
+    try {
+        // 1. Проверяем, есть ли локальная версия
+        const hasLocalVersion = editedSongs && editedSongs[id];
+        
+        if (hasLocalVersion) {
+            // Если есть локальная версия — показываем её (сразу, без запроса к GitHub)
+            currentRawOriginal = editedSongs[id];
+            currentSongId = id;
+            currentOriginUrl = song.originUrl || null;
+            transposeShift = songTransposes[id] || 0;
+            updateSongDisplay();
+            
+            document.querySelectorAll('.song-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.id === id);
+            });
+            
+            if (saveToStorage) saveLastSong(id);
+            if (window.innerWidth <= 720) closeSidebar();
+            
+            console.log(`📝 Используем ЛОКАЛЬНУЮ версию "${song.title}"`);
+            
+            // Асинхронно проверяем синхронизацию с GitHub
+            checkForUpdates(id);
+            return;
+        }
+        
+        // 2. Нет локальной версии — загружаем с GitHub
+        let url = `songs/${encodeURIComponent(song.fileName)}`;
+        url += '?t=' + Date.now();
+        
+        const response = await fetch(url, { 
+            cache: 'no-store', 
+            headers: { 
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            } 
+        });
+        
+        if (!response.ok) throw new Error('Файл не найден');
+        const text = await response.text();
+        
+        currentRawOriginal = text;
+        currentSongId = id;
+        currentOriginUrl = song.originUrl || null;
+        transposeShift = songTransposes[id] || 0;
+        updateSongDisplay();
+        
+        // Обновляем оригинал в localStorage
+        const originalKey = id + '_original';
+        if (editedSongs) {
+            editedSongs[originalKey] = text;
+            if (editedSongs[id] === text) {
+                delete editedSongs[id];
+            }
+            if (typeof saveEditedSongs === 'function') saveEditedSongs();
+        }
+        
+        document.querySelectorAll('.song-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.id === id);
+        });
+        
+        if (saveToStorage) saveLastSong(id);
+        if (window.innerWidth <= 720) closeSidebar();
+        
+        console.log(`✅ Песня "${song.title}" загружена с GitHub`);
+    } catch(e) {
+        document.getElementById('songView').innerHTML = `<div class="error-msg">❌ Ошибка загрузки ${song.fileName}</div>`;
+        console.error('Ошибка загрузки песни:', e);
+    }
+}
+
+// ====== ЗАГРУЗКА СПИСКА ПЕСЕН ======
 async function loadSongsFromCSV(forceRefresh = false) {
     try {
         let url = 'songs/songs.csv';
         if (forceRefresh) url += '?t=' + Date.now();
-        const response = await fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+        const response = await fetch(url, { 
+            cache: 'no-store', 
+            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } 
+        });
         if (!response.ok) throw new Error('CSV не найден');
         const csvText = await response.text();
         const songs = parseCSV(csvText);
@@ -199,8 +316,10 @@ async function loadSongsFromCSV(forceRefresh = false) {
             fileName: song.fileName,
             originUrl: song.originUrl || null
         }));
+        
         console.log('Загружены песни:', songsList.length);
         renderSongList();
+        
         const lastSongId = localStorage.getItem(STORAGE_LAST_SONG);
         if (lastSongId && songsList.some(s => s.id === lastSongId)) {
             await loadSongById(lastSongId, true, forceRefresh);
@@ -211,6 +330,34 @@ async function loadSongsFromCSV(forceRefresh = false) {
         document.getElementById('songListContainer').innerHTML = `<div style="padding:20px;color:#e74c3c;">❌ Файл songs/songs.csv не найден</div>`;
         console.error('Ошибка загрузки CSV:', e);
     }
+}
+
+// ====== ОБНОВЛЕНИЕ СПИСКА ПЕСЕН ======
+async function refreshSongsList() {
+    const refreshBtn = document.getElementById('refreshCsvBtn');
+    refreshBtn.innerHTML = '⏳';
+    refreshBtn.disabled = true;
+    
+    try {
+        const url = 'songs/songs.csv?t=' + Date.now();
+        const response = await fetch(url, { 
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+        });
+        if (response.ok) {
+            await loadSongsFromCSV(true);
+            if (currentSongId) {
+                await loadSongById(currentSongId, true, true);
+            }
+        } else {
+            throw new Error('Ошибка загрузки');
+        }
+    } catch (e) {
+        console.error('Ошибка обновления:', e);
+    }
+    
+    refreshBtn.innerHTML = '⟳';
+    refreshBtn.disabled = false;
 }
 
 function parseCSV(csvText) {
@@ -317,28 +464,6 @@ function updateSongDisplay() {
     if (songView) songView.scrollTop = 0;
 }
 
-async function loadSongById(id, saveToStorage = true, forceRefresh = false) {
-    const song = songsList.find(s => s.id === id);
-    if (!song) return;
-    try {
-        let url = `songs/${encodeURIComponent(song.fileName)}`;
-        if (forceRefresh) url += '?t=' + Date.now();
-        const response = await fetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
-        if (!response.ok) throw new Error('Файл не найден');
-        currentRawOriginal = await response.text();
-        currentSongId = id;
-        currentOriginUrl = song.originUrl || null;
-        transposeShift = songTransposes[id] || 0;
-        updateSongDisplay();
-        document.querySelectorAll('.song-item').forEach(el => { el.classList.toggle('active', el.dataset.id === id); });
-        if (saveToStorage) saveLastSong(id);
-        if (window.innerWidth <= 720) closeSidebar();
-    } catch(e) {
-        document.getElementById('songView').innerHTML = `<div class="error-msg">❌ Ошибка загрузки ${song.fileName}</div>`;
-        console.error('Ошибка загрузки песни:', e);
-    }
-}
-
 function changeTranspose(delta) {
     if (!currentSongId) return;
     let newShift = transposeShift + delta;
@@ -373,13 +498,6 @@ function renderSongList(filterText = "") {
         container.appendChild(div);
     });
     updateTransposeBadge();
-}
-
-async function refreshSongsList() {
-    const refreshBtn = document.getElementById('refreshCsvBtn');
-    refreshBtn.innerHTML = '⏳';
-    await loadSongsFromCSV(true);
-    refreshBtn.innerHTML = '⟳';
 }
 
 function openSidebar() { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('active'); }
