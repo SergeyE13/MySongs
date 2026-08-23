@@ -104,21 +104,17 @@ async function checkAndClearLocalIfSynced(songId, content) {
         const freshText = await response.text();
         
         if (freshText === content) {
-            // Удаляем локальную правку
             delete editedSongs[songId];
             saveEditedSongs();
             
-            // Обновляем оригинал
             const originalKey = songId + '_original';
             editedSongs[originalKey] = freshText;
             saveEditedSongs();
             
-            // ====== ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ СПИСКА ======
             const searchInput = document.getElementById('searchInput');
             const filterText = searchInput ? searchInput.value : '';
             renderSongList(filterText);
             
-            // Если это текущая песня — обновляем отображение
             if (currentSongId === songId) {
                 currentRawOriginal = freshText;
                 updateSongDisplay();
@@ -467,40 +463,56 @@ function loadJSZip() {
 }
 
 // ====== ПЕРЕХВАТ ЗАГРУЗКИ ПЕСЕН ======
-const originalLoadSong = window.loadSongById || loadSongById;
-window.loadSongById = async function(id, saveToStorage, forceRefresh) {
-    await originalLoadSong(id, saveToStorage, forceRefresh);
-    if (currentSongId && currentRawOriginal) {
-        const originalKey = currentSongId + '_original';
-        editedSongs[originalKey] = currentRawOriginal;
-        if (editedSongs[currentSongId] && editedSongs[currentSongId] === currentRawOriginal) {
-            delete editedSongs[currentSongId];
-        }
-        saveEditedSongs();
+// Используем setTimeout, чтобы дождаться загрузки script.js
+setTimeout(() => {
+    if (typeof window.loadSongById === 'function') {
+        const originalLoadSong = window.loadSongById;
+        window.loadSongById = async function(id, saveToStorage, forceRefresh) {
+            await originalLoadSong(id, saveToStorage, forceRefresh);
+            if (currentSongId && currentRawOriginal) {
+                const originalKey = currentSongId + '_original';
+                editedSongs[originalKey] = currentRawOriginal;
+                if (editedSongs[currentSongId] && editedSongs[currentSongId] === currentRawOriginal) {
+                    delete editedSongs[currentSongId];
+                }
+                saveEditedSongs();
+            }
+        };
+        console.log('✅ Перехват loadSongById установлен');
+    } else {
+        console.warn('⚠️ loadSongById не найдена, перехват не установлен');
     }
-};
+}, 100);
 
 // ====== РАСШИРЕННЫЙ RENDER ДЛЯ ПОМЕТОК ======
-const originalRender = renderSongList;
-renderSongList = function(filterText) {
-    originalRender(filterText);
-    document.querySelectorAll('.song-item').forEach(item => {
-        const id = item.dataset.id;
-        if (id && editedSongs[id]) {
-            const originalKey = id + '_original';
-            if (editedSongs[originalKey] && editedSongs[id] !== editedSongs[originalKey]) {
-                const old = item.querySelector('.local-badge');
-                if (old) old.remove();
-                const badge = document.createElement('span');
-                badge.className = 'local-badge';
-                badge.textContent = '💾 локально';
-                badge.style.cssText = 'position:absolute;right:75px;top:50%;transform:translateY(-50%);background:#e67e22;color:white;font-size:0.65rem;padding:2px 8px;border-radius:20px;font-weight:bold;';
-                item.style.position = 'relative';
-                item.appendChild(badge);
-            }
-        }
-    });
-};
+// Используем setTimeout, чтобы дождаться загрузки script.js
+setTimeout(() => {
+    if (typeof window.renderSongList === 'function') {
+        const originalRender = window.renderSongList;
+        window.renderSongList = function(filterText) {
+            originalRender(filterText);
+            document.querySelectorAll('.song-item').forEach(item => {
+                const id = item.dataset.id;
+                if (id && editedSongs[id]) {
+                    const originalKey = id + '_original';
+                    if (editedSongs[originalKey] && editedSongs[id] !== editedSongs[originalKey]) {
+                        const old = item.querySelector('.local-badge');
+                        if (old) old.remove();
+                        const badge = document.createElement('span');
+                        badge.className = 'local-badge';
+                        badge.textContent = '💾 локально';
+                        badge.style.cssText = 'position:absolute;right:75px;top:50%;transform:translateY(-50%);background:#e67e22;color:white;font-size:0.65rem;padding:2px 8px;border-radius:20px;font-weight:bold;';
+                        item.style.position = 'relative';
+                        item.appendChild(badge);
+                    }
+                }
+            });
+        };
+        console.log('✅ Перехват renderSongList установлен');
+    } else {
+        console.warn('⚠️ renderSongList не найдена, перехват не установлен');
+    }
+}, 100);
 
 // ====== ВОССТАНОВЛЕНИЕ ПОСЛЕ ПЕРЕЗАГРУЗКИ ======
 function restoreSongAfterReload() {
@@ -516,7 +528,11 @@ function restoreSongAfterReload() {
                 updateSongDisplay();
                 console.log(`✅ Песня "${song.title}" восстановлена из localStorage`);
             } else {
-                loadSongById(songId, true, true);
+                if (typeof loadSongById === 'function') {
+                    loadSongById(songId, true, true);
+                } else {
+                    console.warn('⚠️ loadSongById не доступна');
+                }
             }
         }
     }
