@@ -8,6 +8,17 @@ let songTransposes = {};
 const STORAGE_TRANSPOSES = 'songbook_transposes';
 const STORAGE_LAST_SONG = 'songbook_last_song';
 
+// ====== ОТЛАДКА ======
+function debugLog(message, data = null) {
+    const timestamp = new Date().toLocaleTimeString();
+    const prefix = `[${timestamp}] 🐞`;
+    if (data) {
+        console.log(prefix, message, data);
+    } else {
+        console.log(prefix, message);
+    }
+}
+
 // ====== УЛУЧШЕННАЯ ФУНКЦИЯ РАСПОЗНАВАНИЯ АККОРДОВ ======
 function isChordLike(str) {
     str = str.trim();
@@ -185,37 +196,82 @@ function isValidUrl(str) {
     }
 }
 
+// ====== ПОЛУЧЕНИЕ ИНФОРМАЦИИ О ВЕРСИЯХ ======
+function getVersionInfo(songId) {
+    const song = songsList.find(s => s.id === songId);
+    if (!song) return null;
+    
+    const localVersion = editedSongs && editedSongs[songId] ? editedSongs[songId] : null;
+    const originalVersion = editedSongs && editedSongs[songId + '_original'] ? editedSongs[songId + '_original'] : null;
+    const currentDisplay = currentSongId === songId ? currentRawOriginal : null;
+    
+    return {
+        title: song.title,
+        fileName: song.fileName,
+        hasLocalVersion: !!localVersion,
+        localVersionLength: localVersion ? localVersion.length : 0,
+        localVersionPreview: localVersion ? localVersion.substring(0, 50) + '...' : 'null',
+        hasOriginalVersion: !!originalVersion,
+        originalVersionLength: originalVersion ? originalVersion.length : 0,
+        currentDisplayLength: currentDisplay ? currentDisplay.length : 0,
+        isLocalEqualDisplay: localVersion && currentDisplay ? localVersion === currentDisplay : false
+    };
+}
+
 // ====== АСИНХРОННАЯ ПРОВЕРКА ОБНОВЛЕНИЙ НА GITHUB ======
-async function checkForUpdates(id) {
+async function checkForUpdates(id, attempt = 1) {
     const song = songsList.find(s => s.id === id);
     if (!song) return;
     
+    debugLog(`🔍 ПРОВЕРКА #${attempt} для "${song.title}"`);
+    
     try {
         const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
+        debugLog(`📡 Запрос к GitHub: ${url}`);
+        
         const response = await fetch(url, {
             cache: 'no-store',
             headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
         });
-        if (!response.ok) return;
+        
+        if (!response.ok) {
+            debugLog(`❌ Ошибка запроса: ${response.status}`);
+            return;
+        }
         
         const freshText = await response.text();
+        debugLog(`📄 GitHub версия: ${freshText.length} символов`);
+        debugLog(`📄 GitHub preview: ${freshText.substring(0, 80)}...`);
+        
         const localText = editedSongs && editedSongs[id] ? editedSongs[id] : null;
+        debugLog(`📄 Локальная версия: ${localText ? localText.length : 0} символов`);
+        if (localText) {
+            debugLog(`📄 Локальная preview: ${localText.substring(0, 80)}...`);
+        }
         
         if (localText && localText === freshText) {
+            debugLog(`✅ СИНХРОНИЗИРОВАНО! Удаляем локальную версию для "${song.title}"`);
             delete editedSongs[id];
             if (typeof saveEditedSongs === 'function') saveEditedSongs();
             
             if (currentSongId === id) {
+                debugLog(`🔄 Обновляем список и отображение для "${song.title}"`);
                 renderSongList(document.getElementById('searchInput')?.value || '');
-                console.log(`✅ Песня "${song.title}" синхронизирована, пометка удалена`);
+                // Обновляем отображение, если это текущая песня
+                currentRawOriginal = freshText;
+                updateSongDisplay();
+                debugLog(`✅ Песня "${song.title}" обновлена на экране`);
             }
         } else if (localText && localText !== freshText) {
-            console.log(`🔄 Песня "${song.title}" ещё не синхронизирована с GitHub, повторная проверка через 3 сек...`);
-            setTimeout(() => checkForUpdates(id), 3000);
+            debugLog(`🔄 Версии НЕ совпадают (${localText.length} vs ${freshText.length})`);
+            debugLog(`🔄 Повторная проверка через 3 секунды...`);
+            setTimeout(() => checkForUpdates(id, attempt + 1), 3000);
+        } else {
+            debugLog(`ℹ️ Нет локальной версии для "${song.title}"`);
         }
     } catch (e) {
-        console.warn('⚠️ Ошибка проверки обновлений:', e);
-        setTimeout(() => checkForUpdates(id), 5000);
+        debugLog(`⚠️ Ошибка проверки обновлений: ${e.message}`);
+        setTimeout(() => checkForUpdates(id, attempt + 1), 5000);
     }
 }
 
@@ -224,12 +280,15 @@ async function loadSongById(id, saveToStorage = true, forceRefresh = false) {
     const song = songsList.find(s => s.id === id);
     if (!song) return;
     
+    debugLog(`🎵 ЗАГРУЗКА "${song.title}" (forceRefresh: ${forceRefresh})`);
+    debugLog(`📊 Текущее состояние до загрузки:`, getVersionInfo(id));
+    
     try {
         // 1. Проверяем, есть ли локальная версия
         const hasLocalVersion = editedSongs && editedSongs[id];
         
         if (hasLocalVersion) {
-            // Если есть локальная версия — показываем её (сразу, без запроса к GitHub)
+            debugLog(`📝 Используем ЛОКАЛЬНУЮ версию "${song.title}" (мгновенно)`);
             currentRawOriginal = editedSongs[id];
             currentSongId = id;
             currentOriginUrl = song.originUrl || null;
@@ -243,9 +302,10 @@ async function loadSongById(id, saveToStorage = true, forceRefresh = false) {
             if (saveToStorage) saveLastSong(id);
             if (window.innerWidth <= 720) closeSidebar();
             
-            console.log(`📝 Используем ЛОКАЛЬНУЮ версию "${song.title}"`);
+            debugLog(`📊 Состояние после локальной загрузки:`, getVersionInfo(id));
             
             // Асинхронно проверяем синхронизацию с GitHub
+            debugLog(`🔄 Запускаем асинхронную проверку синхронизации для "${song.title}"`);
             checkForUpdates(id);
             return;
         }
@@ -253,6 +313,8 @@ async function loadSongById(id, saveToStorage = true, forceRefresh = false) {
         // 2. Нет локальной версии — загружаем с GitHub
         let url = `songs/${encodeURIComponent(song.fileName)}`;
         url += '?t=' + Date.now();
+        
+        debugLog(`📡 Загрузка с GitHub: ${url}`);
         
         const response = await fetch(url, { 
             cache: 'no-store', 
@@ -263,8 +325,13 @@ async function loadSongById(id, saveToStorage = true, forceRefresh = false) {
             } 
         });
         
-        if (!response.ok) throw new Error('Файл не найден');
+        if (!response.ok) {
+            debugLog(`❌ Ошибка загрузки: ${response.status}`);
+            throw new Error('Файл не найден');
+        }
         const text = await response.text();
+        debugLog(`📄 Получено с GitHub: ${text.length} символов`);
+        debugLog(`📄 GitHub preview: ${text.substring(0, 80)}...`);
         
         currentRawOriginal = text;
         currentSongId = id;
@@ -289,9 +356,11 @@ async function loadSongById(id, saveToStorage = true, forceRefresh = false) {
         if (saveToStorage) saveLastSong(id);
         if (window.innerWidth <= 720) closeSidebar();
         
-        console.log(`✅ Песня "${song.title}" загружена с GitHub`);
+        debugLog(`✅ Песня "${song.title}" загружена с GitHub`);
+        debugLog(`📊 Состояние после загрузки с GitHub:`, getVersionInfo(id));
     } catch(e) {
         document.getElementById('songView').innerHTML = `<div class="error-msg">❌ Ошибка загрузки ${song.fileName}</div>`;
+        debugLog(`❌ Критическая ошибка загрузки: ${e.message}`);
         console.error('Ошибка загрузки песни:', e);
     }
 }
@@ -301,6 +370,8 @@ async function loadSongsFromCSV(forceRefresh = false) {
     try {
         let url = 'songs/songs.csv';
         if (forceRefresh) url += '?t=' + Date.now();
+        debugLog(`📡 Загрузка CSV: ${url}`);
+        
         const response = await fetch(url, { 
             cache: 'no-store', 
             headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } 
@@ -317,17 +388,20 @@ async function loadSongsFromCSV(forceRefresh = false) {
             originUrl: song.originUrl || null
         }));
         
-        console.log('Загружены песни:', songsList.length);
+        debugLog(`✅ Загружено песен: ${songsList.length}`);
         renderSongList();
         
         const lastSongId = localStorage.getItem(STORAGE_LAST_SONG);
         if (lastSongId && songsList.some(s => s.id === lastSongId)) {
+            debugLog(`🔄 Восстановление последней песни: ${lastSongId}`);
             await loadSongById(lastSongId, true, forceRefresh);
         } else if (songsList.length > 0 && !currentSongId) {
+            debugLog(`🔄 Загрузка первой песни: ${songsList[0].title}`);
             await loadSongById(songsList[0].id, true, forceRefresh);
         }
     } catch(e) {
         document.getElementById('songListContainer').innerHTML = `<div style="padding:20px;color:#e74c3c;">❌ Файл songs/songs.csv не найден</div>`;
+        debugLog(`❌ Ошибка загрузки CSV: ${e.message}`);
         console.error('Ошибка загрузки CSV:', e);
     }
 }
@@ -337,6 +411,7 @@ async function refreshSongsList() {
     const refreshBtn = document.getElementById('refreshCsvBtn');
     refreshBtn.innerHTML = '⏳';
     refreshBtn.disabled = true;
+    debugLog('🔄 Ручное обновление списка песен');
     
     try {
         const url = 'songs/songs.csv?t=' + Date.now();
@@ -347,12 +422,14 @@ async function refreshSongsList() {
         if (response.ok) {
             await loadSongsFromCSV(true);
             if (currentSongId) {
+                debugLog(`🔄 Перезагрузка текущей песни после обновления`);
                 await loadSongById(currentSongId, true, true);
             }
         } else {
             throw new Error('Ошибка загрузки');
         }
     } catch (e) {
+        debugLog(`❌ Ошибка обновления: ${e.message}`);
         console.error('Ошибка обновления:', e);
     }
     
@@ -405,6 +482,7 @@ function parseCSV(csvText) {
 function loadSavedTransposes() {
     const saved = localStorage.getItem(STORAGE_TRANSPOSES);
     if (saved) { try { songTransposes = JSON.parse(saved); } catch(e) {} }
+    debugLog(`📊 Загружено транспонирований: ${Object.keys(songTransposes).length}`);
 }
 
 function saveCurrentTranspose() {
@@ -506,6 +584,9 @@ function openConverter() { window.open('converter.html', '_blank'); }
 
 // ====== ИНИЦИАЛИЗАЦИЯ ======
 document.addEventListener('DOMContentLoaded', () => {
+    debugLog('🚀 ПРИЛОЖЕНИЕ ЗАГРУЖЕНО');
+    debugLog(`📱 Разрешение экрана: ${window.innerWidth}x${window.innerHeight}`);
+    
     loadSavedTransposes();
     loadSongsFromCSV(false);
     document.getElementById('searchInput').addEventListener('input', (e) => renderSongList(e.target.value));
@@ -517,4 +598,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('converterIconBtn').addEventListener('click', openConverter);
     document.getElementById('refreshCsvBtn').addEventListener('click', refreshSongsList);
     window.addEventListener('resize', () => { if (window.innerWidth > 720) closeSidebar(); });
+    
+    debugLog('✅ Инициализация завершена');
 });
