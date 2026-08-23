@@ -431,15 +431,3 @@ body {
     font-size: 16px;
     cursor: pointer;
 }
-
-/* ====== ПОДСВЕТКА ТЕКУЩЕЙ СТРОКИ ПРИ АВТОСКРОЛЛЕ ====== */
-.song-line.highlight {
-    background: #fff3cd;
-    border-radius: 8px;
-}
-@media (max-width: 720px) {
-    .song-line.highlight {
-        background: #fff3cd;
-        border-radius: 8px;
-    }
-}

@@ -596,48 +596,6 @@ function updateCapoDisplay() {
     }
 }
 
-// ====== АВТОСКРОЛЛ ======
-let autoscrollTimer = null;
-let autoscrollSpeed = 30;
-
-function toggleAutoscroll() {
-    const btn = document.getElementById('autoscrollToggleBtn');
-    if (autoscrollTimer) {
-        stopAutoscroll();
-        if (btn) btn.textContent = '▶ Автоскролл';
-        return;
-    }
-    if (!currentSongId) {
-        alert('🎵 Сначала выберите песню!');
-        return;
-    }
-    const songView = document.querySelector('.song-view');
-    if (!songView) return;
-    autoscrollTimer = setInterval(() => {
-        songView.scrollTop += autoscrollSpeed;
-        if (songView.scrollTop + songView.clientHeight >= songView.scrollHeight - 10) {
-            stopAutoscroll();
-            if (btn) btn.textContent = '▶ Автоскролл';
-        }
-    }, 300);
-    if (btn) {
-        btn.textContent = '⏸ Остановить';
-        btn.style.background = '#c0392b';
-    }
-}
-
-function stopAutoscroll() {
-    if (autoscrollTimer) {
-        clearInterval(autoscrollTimer);
-        autoscrollTimer = null;
-    }
-    const btn = document.getElementById('autoscrollToggleBtn');
-    if (btn) {
-        btn.style.background = '';
-        btn.textContent = '▶ Автоскролл';
-    }
-}
-
 // ====== ПЕРЕХОД ПО КУПЛЕТАМ ======
 function findSectionElements() {
     return Array.from(document.querySelectorAll('#songView .section-label'));
@@ -720,7 +678,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('overlay').addEventListener('click', closeSidebar);
     document.getElementById('converterIconBtn').addEventListener('click', openConverter);
     document.getElementById('refreshCsvBtn').addEventListener('click', refreshSongsList);
-    document.getElementById('autoscrollToggleBtn').addEventListener('click', toggleAutoscroll);
     document.getElementById('verseNavUpBtn').addEventListener('click', goToPrevSection);
     document.getElementById('verseNavDownBtn').addEventListener('click', goToNextSection);
     updateCapoDisplay();
