@@ -249,6 +249,7 @@ async function checkForUpdates(id, attempt = 1) {
             debugLog(`📄 Локальная preview: ${localText.substring(0, 80)}...`);
         }
         
+        // ====== ТОЛЬКО ЕСЛИ ВЕРСИИ СОВПАЛИ ======
         if (localText && localText === freshText) {
             debugLog(`✅ СИНХРОНИЗИРОВАНО! Удаляем локальную версию для "${song.title}"`);
             delete editedSongs[id];
@@ -256,14 +257,17 @@ async function checkForUpdates(id, attempt = 1) {
             
             if (currentSongId === id) {
                 debugLog(`🔄 Обновляем список и отображение для "${song.title}"`);
-                renderSongList(document.getElementById('searchInput')?.value || '');
-                // Обновляем отображение, если это текущая песня
+                const searchInput = document.getElementById('searchInput');
+                const filterText = searchInput ? searchInput.value : '';
+                renderSongList(filterText);
                 currentRawOriginal = freshText;
                 updateSongDisplay();
                 debugLog(`✅ Песня "${song.title}" обновлена на экране`);
             }
-        } else if (localText && localText !== freshText) {
-            debugLog(`🔄 Версии НЕ совпадают (${localText.length} vs ${freshText.length})`);
+        } 
+        // ====== ЕСЛИ НЕ СОВПАЛИ — ЖДЁМ ======
+        else if (localText && localText !== freshText) {
+            debugLog(`🔄 Версии НЕ совпадают (GitHub задерживает обновление)`);
             debugLog(`🔄 Повторная проверка через 3 секунды...`);
             setTimeout(() => checkForUpdates(id, attempt + 1), 3000);
         } else {
