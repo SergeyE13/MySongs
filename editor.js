@@ -183,26 +183,31 @@ function closeEditor() {
 
 // ====== ОБНОВЛЕНИЕ ТЕКУЩЕЙ ПЕСНИ С GITHUB ======
 async function refreshCurrentSongFromGitHub() {
-    if (!editingSongId) return;
+    if (!editingSongId && !currentSongId) return;
     
-    const song = songsList.find(s => s.id === editingSongId);
+    const songId = editingSongId || currentSongId;
+    const song = songsList.find(s => s.id === songId);
     if (!song) return;
     
     try {
+        console.log(`🔄 Загрузка свежей версии "${song.title}" с GitHub...`);
         const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error('Не удалось загрузить');
         const freshText = await response.text();
         
-        const originalKey = editingSongId + '_original';
+        // Обновляем оригинал
+        const originalKey = songId + '_original';
         editedSongs[originalKey] = freshText;
-        delete editedSongs[editingSongId];
+        
+        // Удаляем локальную правку (если есть)
+        delete editedSongs[songId];
         saveEditedSongs();
         
+        // Обновляем отображение
         currentRawOriginal = freshText;
-        currentSongId = editingSongId;
+        currentSongId = songId;
         updateSongDisplay();
-        renderSongList(document.getElementById('searchInput')?.value || '');
         
         console.log(`✅ Песня "${song.title}" обновлена с GitHub`);
     } catch (e) {
@@ -250,24 +255,30 @@ async function saveEditedSong() {
         alert('💾 Токен не найден. Песня сохранена только локально.');
     }
 
-    // 4. Если сохранилось на GitHub — удаляем локальную копию
+    // 4. Закрываем редактор
+    closeEditorPanel();
+
+    // 5. Если сохранилось на GitHub — удаляем локальную копию и обновляем с GitHub
     if (savedOnGitHub) {
         delete editedSongs[editingSongId];
         saveEditedSongs();
         console.log(`🗑️ Локальная копия "${song.title}" удалена`);
-
-        // Закрываем редактор и обновляем песню с GitHub
-        closeEditorPanel();
+        
         alert('✅ Песня сохранена на GitHub!');
+        
+        // ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ПЕСНЮ С GITHUB
         await refreshCurrentSongFromGitHub();
+        
+        // Перерисовываем список для удаления пометки
+        renderSongList(document.getElementById('searchInput')?.value || '');
     } else {
-        // Закрываем редактор
-        closeEditorPanel();
+        // Если не сохранилось — показываем локальную версию
         if (currentSongId === editingSongId) {
             await loadSongWithEdits(editingSongId);
         }
     }
 }
+
 
 // ====== ЗАГРУЗКА ПЕСНИ С УЧЁТОМ ЛОКАЛЬНЫХ ПРАВОК ======
 async function loadSongWithEdits(songId) {
