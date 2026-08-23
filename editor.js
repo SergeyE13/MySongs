@@ -1,9 +1,8 @@
 ﻿// ============================================================
-//  РЕДАКТОР С АВТОСОХРАНЕНИЕМ НА GITHUB
-//  Токен хранится в localStorage.
-//  Кнопки в сайдбаре видны всегда.
-//  При сохранении: сначала GitHub, потом localStorage (как fallback)
-//  Восстановление песни после перезагрузки через sessionStorage
+//  РЕДАКТОР С АСИНХРОННЫМ СОХРАНЕНИЕМ НА GITHUB
+//  Сначала сохраняем в localStorage (мгновенно),
+//  потом асинхронно отправляем на GitHub.
+//  Если версии совпали — убираем пометку "локально".
 // ============================================================
 
 console.log('📂 editor.js загружен');
@@ -84,6 +83,55 @@ async function saveFileToGitHub(path, content, message) {
 // ====== ПРОВЕРКА ТОКЕНА ======
 function isTokenValid() {
     return GITHUB_TOKEN && GITHUB_TOKEN.startsWith('ghp_') && GITHUB_TOKEN.length > 20;
+}
+
+// ====== ПРОВЕРКА СИНХРОНИЗАЦИИ ======
+async function checkAndClearLocalIfSynced(songId, content) {
+    if (!isTokenValid()) return false;
+    
+    const song = songsList.find(s => s.id === songId);
+    if (!song) return false;
+    
+    try {
+        const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
+        const response = await fetch(url, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' }
+        });
+        if (!response.ok) return false;
+        
+        const freshText = await response.text();
+        
+        // Сравниваем содержимое
+        if (freshText === content) {
+            // Версии совпали — удаляем локальную правку
+            delete editedSongs[songId];
+            saveEditedSongs();
+            
+            // Обновляем оригинал
+            const originalKey = songId + '_original';
+            editedSongs[originalKey] = freshText;
+            saveEditedSongs();
+            
+            // Перерисовываем список (убираем пометку)
+            renderSongList(document.getElementById('searchInput')?.value || '');
+            
+            // Если это текущая песня — обновляем отображение
+            if (currentSongId === songId) {
+                currentRawOriginal = freshText;
+                updateSongDisplay();
+            }
+            
+            console.log(`✅ Песня "${song.title}" синхронизирована с GitHub, пометка удалена`);
+            return true;
+        } else {
+            console.log(`🔄 Версии не совпадают, ждём синхронизации...`);
+            return false;
+        }
+    } catch (e) {
+        console.warn('⚠️ Ошибка проверки синхронизации:', e);
+        return false;
+    }
 }
 
 // ====== ОБНОВЛЕНИЕ ЦВЕТА КНОПКИ "РЕДАКТОР" ======
@@ -218,53 +266,47 @@ async function saveEditedSong() {
     const song = songsList.find(s => s.id === editingSongId);
     if (!song) return;
 
+    // ============================================================
+    // 1. СОХРАНЯЕМ В LOCALSTORAGE (МГНОВЕННО)
+    // ============================================================
+    editedSongs[editingSongId] = content;
+    const originalKey = editingSongId + '_original';
+    if (!editedSongs[originalKey]) {
+        editedSongs[originalKey] = currentRawOriginal;
+    }
+    saveEditedSongs();
+    
+    // Обновляем отображение
+    currentRawOriginal = content;
+    updateSongDisplay();
+    renderSongList(document.getElementById('searchInput')?.value || '');
+    
+    // Закрываем редактор
     closeEditorPanel();
-
-    if (!isTokenValid()) {
-        editedSongs[editingSongId] = content;
-        const originalKey = editingSongId + '_original';
-        if (!editedSongs[originalKey]) {
-            editedSongs[originalKey] = currentRawOriginal;
-        }
-        saveEditedSongs();
-        renderSongList(document.getElementById('searchInput')?.value || '');
-        alert('💾 Токен не найден. Песня сохранена только локально.');
-        await loadSongWithEdits(editingSongId);
-        return;
-    }
-
-    let savedOnGitHub = false;
-    try {
-        await saveFileToGitHub(`songs/${song.fileName}`, content, `Обновление ${song.fileName}`);
-        savedOnGitHub = true;
-        console.log(`✅ Песня "${song.title}" сохранена на GitHub`);
-    } catch (e) {
-        console.warn('⚠️ Не удалось сохранить на GitHub:', e.message);
-        alert(`⚠️ Ошибка GitHub: ${e.message}. Песня сохранена локально.`);
-    }
-
-    if (savedOnGitHub) {
-        delete editedSongs[editingSongId];
-        saveEditedSongs();
+    
+    alert('💾 Песня сохранена локально!');
+    
+    // ============================================================
+    // 2. АСИНХРОННО ОТПРАВЛЯЕМ НА GITHUB
+    // ============================================================
+    if (isTokenValid()) {
+        console.log(`🔄 Асинхронная отправка "${song.title}" на GitHub...`);
         
-        alert('✅ Песня сохранена на GitHub!');
-        
-        const fileNameToRestore = song.fileName;
-        sessionStorage.setItem('song_to_restore', fileNameToRestore);
-        console.log(`🔄 Сохранено имя файла для восстановления: ${fileNameToRestore}`);
-        
-        console.log(`🔄 Перезагрузка страницы...`);
-        location.reload();
+        // Запускаем асинхронный процесс
+        (async () => {
+            try {
+                await saveFileToGitHub(`songs/${song.fileName}`, content, `Обновление ${song.fileName}`);
+                console.log(`✅ Песня "${song.title}" отправлена на GitHub`);
+                
+                // Проверяем синхронизацию и убираем пометку
+                await checkAndClearLocalIfSynced(editingSongId, content);
+            } catch (e) {
+                console.warn(`⚠️ Не удалось отправить "${song.title}" на GitHub:`, e.message);
+                // Песня остаётся в localStorage с пометкой
+            }
+        })();
     } else {
-        editedSongs[editingSongId] = content;
-        const originalKey = editingSongId + '_original';
-        if (!editedSongs[originalKey]) {
-            editedSongs[originalKey] = currentRawOriginal;
-        }
-        saveEditedSongs();
-        renderSongList(document.getElementById('searchInput')?.value || '');
-        await loadSongWithEdits(editingSongId);
-        alert('💾 Песня сохранена локально (не на GitHub)');
+        console.log('ℹ️ Токен не найден, песня только локально');
     }
 }
 
@@ -296,41 +338,42 @@ async function createNewSong() {
         originUrl: null
     };
 
-    let savedOnGitHub = false;
-    try {
-        await saveFileToGitHub(`songs/${fileName}`, template, `Добавлена песня: ${fileName}`);
-        const csvLine = `"${artist}","${title}","${fileName}"\n`;
-        await appendToCSV(csvLine);
-        savedOnGitHub = true;
-        console.log(`✅ Новая песня "${title}" создана на GitHub`);
-    } catch (e) {
-        console.warn('⚠️ Не удалось сохранить на GitHub:', e.message);
-        alert(`⚠️ Ошибка GitHub: ${e.message}. Песня сохранена локально.`);
-        savedOnGitHub = false;
-    }
-
-    if (!savedOnGitHub) {
-        songsList.push(newSong);
-        editedSongs[newSong.id] = template;
-        editedSongs[newSong.id + '_original'] = template;
-        saveEditedSongs();
-        const custom = JSON.parse(localStorage.getItem('custom_songs') || '[]');
-        custom.push(newSong);
-        localStorage.setItem('custom_songs', JSON.stringify(custom));
-        console.log(`💾 Новая песня "${title}" сохранена локально`);
-    } else {
-        songsList.push(newSong);
-        sessionStorage.setItem('song_to_restore', fileName);
-    }
-
+    // Добавляем в список
+    songsList.push(newSong);
+    
+    // Сохраняем локально
+    editedSongs[newSong.id] = template;
+    editedSongs[newSong.id + '_original'] = template;
+    saveEditedSongs();
+    
+    // Сохраняем в custom_songs
+    const custom = JSON.parse(localStorage.getItem('custom_songs') || '[]');
+    custom.push(newSong);
+    localStorage.setItem('custom_songs', JSON.stringify(custom));
+    
     renderSongList(document.getElementById('searchInput')?.value || '');
-    alert(savedOnGitHub ? '✅ Песня создана на GitHub!' : '💾 Песня создана локально (не на GitHub)');
-    if (savedOnGitHub) {
-        console.log(`🔄 Перезагрузка страницы...`);
-        location.reload();
-    } else {
-        openEditorPanel();
+    await loadSongWithEdits(newSong.id);
+    
+    alert('💾 Песня создана локально! Отправка на GitHub...');
+    
+    // Асинхронно отправляем на GitHub
+    if (isTokenValid()) {
+        (async () => {
+            try {
+                await saveFileToGitHub(`songs/${fileName}`, template, `Добавлена песня: ${fileName}`);
+                const csvLine = `"${artist}","${title}","${fileName}"\n`;
+                await appendToCSV(csvLine);
+                console.log(`✅ Новая песня "${title}" создана на GitHub`);
+                
+                // Проверяем синхронизацию
+                await checkAndClearLocalIfSynced(newSong.id, template);
+            } catch (e) {
+                console.warn(`⚠️ Не удалось создать "${title}" на GitHub:`, e.message);
+            }
+        })();
     }
+    
+    openEditorPanel();
 }
 
 // ====== ОБНОВЛЕНИЕ CSV ======
@@ -461,91 +504,26 @@ renderSongList = function(filterText) {
     });
 };
 
-// ====== ВОССТАНОВЛЕНИЕ ПЕСНИ ПОСЛЕ ПЕРЕЗАГРУЗКИ ======
+// ====== ВОССТАНОВЛЕНИЕ ПОСЛЕ ПЕРЕЗАГРУЗКИ ======
 function restoreSongAfterReload() {
-    const fileName = sessionStorage.getItem('song_to_restore');
-    if (!fileName) {
-        console.log('ℹ️ Нет сохранённой песни для восстановления');
-        return;
+    // Если есть локально сохранённая песня — загружаем её
+    const songId = localStorage.getItem('last_song_id');
+    if (songId) {
+        localStorage.removeItem('last_song_id');
+        const song = songsList.find(s => s.id === songId);
+        if (song) {
+            console.log(`🔄 Восстановление "${song.title}" из localStorage...`);
+            // Проверяем, есть ли локальная правка
+            if (editedSongs[songId]) {
+                currentRawOriginal = editedSongs[songId];
+                currentSongId = songId;
+                updateSongDisplay();
+                console.log(`✅ Песня "${song.title}" восстановлена из localStorage`);
+            } else {
+                loadSongById(songId, true, true);
+            }
+        }
     }
-    
-    console.log(`🔄 Восстановление песни с именем файла: ${fileName}`);
-    
-    function tryLoadSong() {
-        if (!songsList || songsList.length === 0) {
-            console.log('⏳ Список песен ещё не загружен, ждём...');
-            return false;
-        }
-        
-        const song = songsList.find(s => s.fileName === fileName);
-        if (!song) {
-            console.warn(`⚠️ Песня с именем файла "${fileName}" не найдена`);
-            return false;
-        }
-        
-        console.log(`✅ Найдена песня: "${song.title}", принудительная загрузка с GitHub...`);
-        
-        // ====== ПРИНУДИТЕЛЬНАЯ ПЕРЕЗАГРУЗКА С GITHUB ======
-        const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
-        
-        fetch(url, {
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-        })
-        .then(response => {
-            if (!response.ok) throw new Error('Не удалось загрузить');
-            return response.text();
-        })
-        .then(freshText => {
-            console.log(`📄 Текст загружен, длина: ${freshText.length}`);
-            
-            // Обновляем все данные
-            currentRawOriginal = freshText;
-            currentSongId = song.id;
-            transposeShift = songTransposes[song.id] || 0;
-            
-            // Обновляем оригинал в localStorage
-            const originalKey = song.id + '_original';
-            editedSongs[originalKey] = freshText;
-            delete editedSongs[song.id];
-            saveEditedSongs();
-            
-            // ====== ПЕРЕРИСОВЫВАЕМ ======
-            updateSongDisplay();
-            renderSongList(document.getElementById('searchInput')?.value || '');
-            
-            sessionStorage.removeItem('song_to_restore');
-            
-            console.log(`✅ Песня "${song.title}" принудительно обновлена с GitHub`);
-        })
-        .catch(error => {
-            console.warn('⚠️ Ошибка загрузки:', error);
-            loadSongById(song.id, true, true);
-        });
-        
-        return true;
-    }
-    
-    if (tryLoadSong()) {
-        console.log('✅ Песня восстановлена, обновляем отображение...');
-        return;
-    }
-    
-    let attempts = 0;
-    const maxAttempts = 30;
-    
-    const interval = setInterval(() => {
-        attempts++;
-        if (tryLoadSong()) {
-            clearInterval(interval);
-            return;
-        }
-        if (attempts >= maxAttempts) {
-            clearInterval(interval);
-            console.warn('⚠️ Не удалось восстановить песню после перезагрузки');
-            sessionStorage.removeItem('song_to_restore');
-        }
-    }, 100);
 }
 
 // ====== ИНИЦИАЛИЗАЦИЯ ======
@@ -568,7 +546,17 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('📝 Редактор загружен');
     console.log('🔑 Токен:', isTokenValid() ? '✅ есть' : '❌ нет');
     
+    // Восстанавливаем последнюю песню
     setTimeout(() => {
         restoreSongAfterReload();
     }, 300);
 });
+
+// Сохраняем ID последней песни при выборе
+const originalSelectSong = loadSongById;
+loadSongById = async function(id, saveToStorage, forceRefresh) {
+    await originalSelectSong(id, saveToStorage, forceRefresh);
+    if (currentSongId) {
+        localStorage.setItem('last_song_id', currentSongId);
+    }
+};
