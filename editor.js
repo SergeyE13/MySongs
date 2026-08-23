@@ -321,7 +321,6 @@ async function createNewSong() {
         console.log(`💾 Новая песня "${title}" сохранена локально`);
     } else {
         songsList.push(newSong);
-        // Сохраняем имя файла в sessionStorage
         sessionStorage.setItem('song_to_restore', fileName);
     }
 
@@ -486,15 +485,30 @@ function restoreSongAfterReload() {
         }
         
         console.log(`✅ Найдена песня: "${song.title}", загружаем с GitHub...`);
-        loadSongById(song.id, true, true);
         
-        // Удаляем после успешной загрузки
-        sessionStorage.removeItem('song_to_restore');
+        // Загружаем песню с GitHub
+        loadSongById(song.id, true, true).then(() => {
+            // ====== ПРИНУДИТЕЛЬНАЯ ПЕРЕРИСОВКА ======
+            console.log(`🔄 Принудительная перерисовка "${song.title}"...`);
+            
+            // Обновляем отображение напрямую
+            if (currentRawOriginal) {
+                updateSongDisplay();
+            }
+            
+            // Обновляем список (убираем пометку "локально")
+            renderSongList(document.getElementById('searchInput')?.value || '');
+            
+            // Удаляем после успешной загрузки
+            sessionStorage.removeItem('song_to_restore');
+            console.log(`✅ Песня "${song.title}" полностью восстановлена и отображена`);
+        });
+        
         return true;
     }
     
     if (tryLoadSong()) {
-        console.log('✅ Песня восстановлена сразу');
+        console.log('✅ Песня восстановлена, обновляем отображение...');
         return;
     }
     
@@ -505,7 +519,6 @@ function restoreSongAfterReload() {
         attempts++;
         if (tryLoadSong()) {
             clearInterval(interval);
-            console.log(`✅ Песня восстановлена после ${attempts} попыток`);
             return;
         }
         if (attempts >= maxAttempts) {
