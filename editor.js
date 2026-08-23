@@ -253,8 +253,11 @@ async function saveEditedSong() {
         
         alert('✅ Песня сохранена на GitHub!');
         
-        // ====== ПЕРЕЗАГРУЗКА СТРАНИЦЫ ======
-        console.log('🔄 Перезагрузка страницы для обновления данных...');
+        // ====== СОХРАНЯЕМ ID ПЕСНИ ПЕРЕД ПЕРЕЗАГРУЗКОЙ ======
+        const songIdToRestore = editingSongId;
+        localStorage.setItem('song_to_restore', songIdToRestore);
+        
+        console.log(`🔄 Перезагрузка страницы, будет восстановлена песня: ${song.title}`);
         location.reload();
     } else {
         // Ошибка — сохраняем локально
@@ -325,10 +328,11 @@ async function createNewSong() {
     }
 
     renderSongList(document.getElementById('searchInput')?.value || '');
-    // Перезагружаем страницу после создания новой песни
     alert(savedOnGitHub ? '✅ Песня создана на GitHub!' : '💾 Песня создана локально (не на GitHub)');
     if (savedOnGitHub) {
-        console.log('🔄 Перезагрузка страницы для обновления данных...');
+        // Сохраняем ID новой песни перед перезагрузкой
+        localStorage.setItem('song_to_restore', newSong.id);
+        console.log(`🔄 Перезагрузка страницы, будет восстановлена песня: ${title}`);
         location.reload();
     } else {
         openEditorPanel();
@@ -463,6 +467,29 @@ renderSongList = function(filterText) {
     });
 };
 
+// ====== ВОССТАНОВЛЕНИЕ ПЕСНИ ПОСЛЕ ПЕРЕЗАГРУЗКИ ======
+function restoreSongAfterReload() {
+    const songId = localStorage.getItem('song_to_restore');
+    if (songId) {
+        localStorage.removeItem('song_to_restore');
+        console.log(`🔄 Восстановление песни с ID: ${songId}`);
+        
+        // Ждём, пока загрузится список песен
+        const checkAndLoad = setInterval(() => {
+            if (songsList.length > 0) {
+                clearInterval(checkAndLoad);
+                const song = songsList.find(s => s.id === songId);
+                if (song) {
+                    console.log(`✅ Восстанавливаем песню: ${song.title}`);
+                    loadSongById(songId, true, true);
+                } else {
+                    console.warn('⚠️ Песня не найдена для восстановления');
+                }
+            }
+        }, 100);
+    }
+}
+
 // ====== ИНИЦИАЛИЗАЦИЯ ======
 document.addEventListener('DOMContentLoaded', function() {
     loadEditedSongs();
@@ -482,4 +509,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('📝 Редактор загружен');
     console.log('🔑 Токен:', isTokenValid() ? '✅ есть' : '❌ нет');
+    
+    // Восстанавливаем песню после перезагрузки
+    restoreSongAfterReload();
 });
