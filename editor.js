@@ -104,15 +104,21 @@ async function checkAndClearLocalIfSynced(songId, content) {
         const freshText = await response.text();
         
         if (freshText === content) {
+            // Удаляем локальную правку
             delete editedSongs[songId];
             saveEditedSongs();
             
+            // Обновляем оригинал
             const originalKey = songId + '_original';
             editedSongs[originalKey] = freshText;
             saveEditedSongs();
             
-            renderSongList(document.getElementById('searchInput')?.value || '');
+            // ====== ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ СПИСКА ======
+            const searchInput = document.getElementById('searchInput');
+            const filterText = searchInput ? searchInput.value : '';
+            renderSongList(filterText);
             
+            // Если это текущая песня — обновляем отображение
             if (currentSongId === songId) {
                 currentRawOriginal = freshText;
                 updateSongDisplay();
@@ -259,7 +265,7 @@ async function loadSongWithEdits(songId) {
     }
 }
 
-// ====== СОХРАНИТЬ ПЕСНЮ (БЕЗ ПЕРЕЗАГРУЗКИ СТРАНИЦЫ) ======
+// ====== СОХРАНИТЬ ПЕСНЮ ======
 async function saveEditedSong() {
     if (!editingSongId) {
         alert('❌ Не выбрана песня');
@@ -272,9 +278,7 @@ async function saveEditedSong() {
     const song = songsList.find(s => s.id === editingSongId);
     if (!song) return;
 
-    // ============================================================
-    // 1. СОХРАНЯЕМ В LOCALSTORAGE (МГНОВЕННО)
-    // ============================================================
+    // ====== 1. СОХРАНЯЕМ В LOCALSTORAGE (МГНОВЕННО) ======
     editedSongs[editingSongId] = content;
     const originalKey = editingSongId + '_original';
     if (!editedSongs[originalKey]) {
@@ -292,9 +296,7 @@ async function saveEditedSong() {
     
     alert('💾 Песня сохранена локально!');
     
-    // ============================================================
-    // 2. АСИНХРОННО ОТПРАВЛЯЕМ НА GITHUB (НЕ БЛОКИРУЕМ UI)
-    // ============================================================
+    // ====== 2. АСИНХРОННО ОТПРАВЛЯЕМ НА GITHUB ======
     if (isTokenValid()) {
         console.log(`🔄 Асинхронная отправка "${song.title}" на GitHub...`);
         
@@ -302,8 +304,6 @@ async function saveEditedSong() {
             try {
                 await saveFileToGitHub(`songs/${song.fileName}`, content, `Обновление ${song.fileName}`);
                 console.log(`✅ Песня "${song.title}" отправлена на GitHub`);
-                
-                // Проверяем синхронизацию и убираем пометку
                 await checkAndClearLocalIfSynced(editingSongId, content);
             } catch (e) {
                 console.warn(`⚠️ Не удалось отправить "${song.title}" на GitHub:`, e.message);
@@ -502,7 +502,7 @@ renderSongList = function(filterText) {
     });
 };
 
-// ====== ВОССТАНОВЛЕНИЕ ПОСЛЕ ПЕРЕЗАГРУЗКИ (если страница всё же перезагрузилась) ======
+// ====== ВОССТАНОВЛЕНИЕ ПОСЛЕ ПЕРЕЗАГРУЗКИ ======
 function restoreSongAfterReload() {
     const songId = localStorage.getItem('last_song_id');
     if (songId) {
