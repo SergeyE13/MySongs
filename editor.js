@@ -86,6 +86,20 @@ function isTokenValid() {
     return GITHUB_TOKEN && GITHUB_TOKEN.startsWith('ghp_') && GITHUB_TOKEN.length > 20;
 }
 
+// ====== ОБНОВЛЕНИЕ ЦВЕТА КНОПКИ "РЕДАКТОР" ======
+function updateEditorButtonColor() {
+    const btn = document.getElementById('editorToggleBtn');
+    if (!btn) return;
+    
+    if (isTokenValid()) {
+        btn.style.background = '#27ae60'; // Зелёный — токен есть
+        btn.textContent = '✏️ Редактор';
+    } else {
+        btn.style.background = '#f39c12'; // Рыжий — токена нет
+        btn.textContent = '✏️ Редактор (токен)';
+    }
+}
+
 // ====== КНОПКА "РЕДАКТОР" (В ТУЛБАРЕ) ======
 function addEditorButton() {
     const toolbar = document.querySelector('.toolbar .controls');
@@ -95,9 +109,12 @@ function addEditorButton() {
     const btn = document.createElement('button');
     btn.id = 'editorToggleBtn';
     btn.textContent = '✏️ Редактор';
-    btn.style.cssText = 'background:#f39c12;color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
+    btn.style.cssText = 'color:white;padding:8px 16px;border:none;border-radius:40px;cursor:pointer;font-size:0.9rem;font-weight:600;font-family:system-ui,sans-serif;';
     btn.onclick = toggleEditor;
     toolbar.prepend(btn);
+    
+    // Устанавливаем цвет при создании
+    updateEditorButtonColor();
     console.log('✅ Кнопка "Редактор" добавлена');
 }
 
@@ -114,14 +131,13 @@ function hideSidebarButtons() {
     document.getElementById('downloadZipBtn').style.display = 'none';
 }
 
-// ====== ВКЛЮЧЕНИЕ РЕЖИМА РЕДАКТИРОВАНИЯ ======
+// ====== ВКЛЮЧЕНИЕ/ВЫКЛЮЧЕНИЕ РЕЖИМА РЕДАКТИРОВАНИЯ ======
 function toggleEditor() {
     if (!isEditorMode) {
-        // Вход в режим
+        // Пытаемся включить режим
         if (isTokenValid()) {
+            // Токен есть — включаем сразу
             isEditorMode = true;
-            document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
-            document.getElementById('editorToggleBtn').style.background = '#27ae60';
             showSidebarButtons();
             showEditorUI();
             if (currentSongId) {
@@ -129,14 +145,18 @@ function toggleEditor() {
             } else {
                 alert('ℹ️ Сначала выберите песню.');
             }
+            // Цвет кнопки остаётся зелёным (токен есть)
             return;
         }
 
+        // Токена нет — запрашиваем
         const token = prompt('🔑 Введите ваш GitHub-токен (начинается с ghp_):');
         if (token && token.startsWith('ghp_') && token.length > 20) {
             localStorage.setItem('github_token', token);
             GITHUB_TOKEN = token;
             alert('✅ Токен сохранён в браузере!');
+            updateEditorButtonColor(); // Обновляем цвет кнопки
+            // Повторно вызываем toggleEditor для входа
             toggleEditor();
         } else if (token !== null) {
             alert('❌ Неверный формат токена. Попробуйте снова.');
@@ -144,11 +164,10 @@ function toggleEditor() {
     } else {
         // Выход из режима
         isEditorMode = false;
-        document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
-        document.getElementById('editorToggleBtn').style.background = '#f39c12';
         hideSidebarButtons();
         hideEditorUI();
         closeEditorPanel();
+        // Цвет кнопки остаётся прежним (зависит от наличия токена)
     }
 }
 
@@ -525,10 +544,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('syncStatusBtn').addEventListener('click', showSyncStatus);
     document.getElementById('downloadZipBtn').addEventListener('click', downloadChangedSongsZip);
     
+    // Если токен есть — сразу включаем режим редактора
     if (isTokenValid()) {
         isEditorMode = true;
-        document.getElementById('editorToggleBtn').textContent = '✏️ Редактор';
-        document.getElementById('editorToggleBtn').style.background = '#27ae60';
         showSidebarButtons();
         showEditorUI();
         console.log('✅ Автовход по токену');
