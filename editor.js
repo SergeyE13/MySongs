@@ -179,48 +179,6 @@ function closeEditor() {
     closeEditorPanel();
 }
 
-// ====== ЗАГРУЗКА ПЕСНИ С GITHUB И ОБНОВЛЕНИЕ ОТОБРАЖЕНИЯ ======
-async function loadSongFromGitHub(songId) {
-    const song = songsList.find(s => s.id === songId);
-    if (!song) return;
-    
-    try {
-        console.log(`🔄 Загрузка "${song.title}" с GitHub...`);
-        const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
-        const response = await fetch(url, {
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache' }
-        });
-        if (!response.ok) throw new Error('Не удалось загрузить');
-        const freshText = await response.text();
-        
-        // Обновляем оригинал
-        const originalKey = songId + '_original';
-        editedSongs[originalKey] = freshText;
-        
-        // Удаляем локальную версию (если есть)
-        delete editedSongs[songId];
-        saveEditedSongs();
-        
-        // Обновляем данные для отображения
-        currentRawOriginal = freshText;
-        currentSongId = songId;
-        transposeShift = songTransposes[songId] || 0;
-        
-        // ====== ОБНОВЛЯЕМ ОТОБРАЖЕНИЕ В БРАУЗЕРЕ ======
-        updateSongDisplay();
-        
-        // Обновляем список (убираем пометку "локально")
-        renderSongList(document.getElementById('searchInput')?.value || '');
-        
-        console.log(`✅ Песня "${song.title}" загружена с GitHub и отображена`);
-        return true;
-    } catch (e) {
-        console.warn('⚠️ Не удалось загрузить с GitHub:', e.message);
-        return false;
-    }
-}
-
 // ====== ЗАГРУЗКА ПЕСНИ С УЧЁТОМ ЛОКАЛЬНЫХ ПРАВОК ======
 async function loadSongWithEdits(songId) {
     const song = songsList.find(s => s.id === songId);
@@ -295,44 +253,9 @@ async function saveEditedSong() {
         
         alert('✅ Песня сохранена на GitHub!');
         
-        // Сохраняем ID песни для обновления
-        const songIdToRefresh = editingSongId;
-        const songTitle = song.title;
-        const fileName = song.fileName;
-        
-        // ПРИНУДИТЕЛЬНО ЗАГРУЖАЕМ СВЕЖУЮ ВЕРСИЮ
-        console.log(`🔄 Принудительная загрузка "${songTitle}" с GitHub...`);
-        
-        try {
-            const url = `songs/${encodeURIComponent(fileName)}?t=${Date.now()}`;
-            const response = await fetch(url, {
-                cache: 'no-store',
-                headers: { 'Cache-Control': 'no-cache' }
-            });
-            if (!response.ok) throw new Error('Не удалось загрузить');
-            const freshText = await response.text();
-            
-            // Обновляем оригинал
-            const originalKey = songIdToRefresh + '_original';
-            editedSongs[originalKey] = freshText;
-            delete editedSongs[songIdToRefresh];
-            saveEditedSongs();
-            
-            // Обновляем отображение
-            currentRawOriginal = freshText;
-            currentSongId = songIdToRefresh;
-            transposeShift = songTransposes[songIdToRefresh] || 0;
-            
-            // ====== ПЕРЕРИСОВЫВАЕМ ======
-            updateSongDisplay();
-            renderSongList(document.getElementById('searchInput')?.value || '');
-            
-            console.log(`✅ Песня "${songTitle}" обновлена в браузере`);
-        } catch (e) {
-            console.warn('⚠️ Не удалось обновить песню:', e.message);
-            // Если не удалось загрузить с GitHub — показываем локальную версию
-            await loadSongWithEdits(songIdToRefresh);
-        }
+        // ====== ПЕРЕЗАГРУЗКА СТРАНИЦЫ ======
+        console.log('🔄 Перезагрузка страницы для обновления данных...');
+        location.reload();
     } else {
         // Ошибка — сохраняем локально
         editedSongs[editingSongId] = content;
@@ -402,9 +325,14 @@ async function createNewSong() {
     }
 
     renderSongList(document.getElementById('searchInput')?.value || '');
-    await loadSongFromGitHub(newSong.id);
+    // Перезагружаем страницу после создания новой песни
     alert(savedOnGitHub ? '✅ Песня создана на GitHub!' : '💾 Песня создана локально (не на GitHub)');
-    openEditorPanel();
+    if (savedOnGitHub) {
+        console.log('🔄 Перезагрузка страницы для обновления данных...');
+        location.reload();
+    } else {
+        openEditorPanel();
+    }
 }
 
 // ====== ОБНОВЛЕНИЕ CSV ======
