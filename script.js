@@ -8,8 +8,11 @@ let songTransposes = {};
 const STORAGE_TRANSPOSES = 'songbook_transposes';
 const STORAGE_LAST_SONG = 'songbook_last_song';
 
-// ====== ОТЛАДКА ======
+// ====== ОТЛАДКА (за флагом DEBUG) ======
+const DEBUG = false;
+
 function debugLog(message, data = null) {
+    if (!DEBUG) return;
     const timestamp = new Date().toLocaleTimeString();
     const prefix = `[${timestamp}] 🐞`;
     if (data) {
@@ -26,7 +29,7 @@ function isChordLike(str) {
     if (/[а-яА-Я]/.test(str)) return false;
     let baseChord = str.split('/')[0].trim();
     if (baseChord === "") return false;
-    const pattern = /^[A-GH][#b]?(?:maj|min|m|sus|add|dim|aug|\+|-)?[0-9]*(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?$/i;
+    const pattern = /^[A-GH][#b]?(?:maj|min|m|sus|add|dim|aug)?(?:[0-9]*)(?:\+|-)?(?:[0-9]+)?$/i;
     if (!pattern.test(baseChord)) return false;
     const allowedSuffixes = ['maj', 'min', 'm', 'sus', 'add', 'dim', 'aug'];
     const chordWithoutRoot = baseChord.replace(/^[A-GH][#b]?/, '');
@@ -552,6 +555,7 @@ function updateSongDisplay() {
     titleHtml += `</div>`;
     document.getElementById('songView').innerHTML = titleHtml + formatSongWithChordsFixed(transposedRaw);
     document.getElementById('transposeAmount').innerText = transposeShift;
+    updateCapoDisplay();
     const songView = document.querySelector('.song-view');
     if (songView) songView.scrollTop = 0;
 }
@@ -571,6 +575,111 @@ function resetTranspose() {
     transposeShift = 0;
     updateSongDisplay();
     saveCurrentTranspose();
+}
+
+// ====== КАПОДАСТР ======
+function getCapo() {
+    const capo = transposeShift > 0 ? transposeShift : 0;
+    return capo;
+}
+
+function updateCapoDisplay() {
+    const el = document.getElementById('capoDisplay');
+    if (!el) return;
+    const capo = getCapo();
+    if (capo > 0) {
+        el.textContent = `🎸 Капо ${capo}`;
+        el.style.display = '';
+    } else {
+        el.textContent = '';
+        el.style.display = 'none';
+    }
+}
+
+// ====== АВТОСКРОЛЛ ======
+let autoscrollTimer = null;
+let autoscrollSpeed = 30;
+
+function toggleAutoscroll() {
+    const btn = document.getElementById('autoscrollToggleBtn');
+    if (autoscrollTimer) {
+        stopAutoscroll();
+        if (btn) btn.textContent = '▶ Автоскролл';
+        return;
+    }
+    if (!currentSongId) {
+        alert('🎵 Сначала выберите песню!');
+        return;
+    }
+    const songView = document.querySelector('.song-view');
+    if (!songView) return;
+    autoscrollTimer = setInterval(() => {
+        songView.scrollTop += autoscrollSpeed;
+        if (songView.scrollTop + songView.clientHeight >= songView.scrollHeight - 10) {
+            stopAutoscroll();
+            if (btn) btn.textContent = '▶ Автоскролл';
+        }
+    }, 300);
+    if (btn) {
+        btn.textContent = '⏸ Остановить';
+        btn.style.background = '#c0392b';
+    }
+}
+
+function stopAutoscroll() {
+    if (autoscrollTimer) {
+        clearInterval(autoscrollTimer);
+        autoscrollTimer = null;
+    }
+    const btn = document.getElementById('autoscrollToggleBtn');
+    if (btn) {
+        btn.style.background = '';
+        btn.textContent = '▶ Автоскролл';
+    }
+}
+
+// ====== ПЕРЕХОД ПО КУПЛЕТАМ ======
+function findSectionElements() {
+    return Array.from(document.querySelectorAll('#songView .section-label'));
+}
+
+function scrollToSection(index) {
+    const sections = findSectionElements();
+    if (sections.length === 0) return;
+    const target = sections[Math.max(0, Math.min(index, sections.length - 1))];
+    const songView = document.querySelector('.song-view');
+    if (!songView) return;
+    songView.scrollTop = target.offsetTop - songView.offsetTop - 10;
+}
+
+function goToPrevSection() {
+    const sections = findSectionElements();
+    if (sections.length === 0) return;
+    const songView = document.querySelector('.song-view');
+    const viewTop = songView.scrollTop;
+    let target = 0;
+    for (let i = sections.length - 1; i >= 0; i--) {
+        if (sections[i].offsetTop - songView.offsetTop < viewTop - 5) {
+            target = i;
+            break;
+        }
+    }
+    scrollToSection(target);
+}
+
+function goToNextSection() {
+    const sections = findSectionElements();
+    if (sections.length === 0) return;
+    const songView = document.querySelector('.song-view');
+    const viewTop = songView.scrollTop + songView.clientHeight * 0.3;
+    let target = sections.length - 1;
+    for (let i = 0; i < sections.length; i++) {
+        if (sections[i].offsetTop - songView.offsetTop > viewTop + 5) {
+            target = i;
+            break;
+        }
+    }
+    scrollToSection(target);
 }
 
 function renderSongList(filterText = "") {
@@ -611,6 +720,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('overlay').addEventListener('click', closeSidebar);
     document.getElementById('converterIconBtn').addEventListener('click', openConverter);
     document.getElementById('refreshCsvBtn').addEventListener('click', refreshSongsList);
+    document.getElementById('autoscrollToggleBtn').addEventListener('click', toggleAutoscroll);
+    document.getElementById('verseNavUpBtn').addEventListener('click', goToPrevSection);
+    document.getElementById('verseNavDownBtn').addEventListener('click', goToNextSection);
+    updateCapoDisplay();
     window.addEventListener('resize', () => { if (window.innerWidth > 720) closeSidebar(); });
     
     debugLog('✅ Инициализация завершена');

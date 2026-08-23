@@ -335,7 +335,7 @@
         let baseChord = str.split('/')[0].trim();
         if (baseChord === "") return false;
         
-        const pattern = /^[A-GH][#b]?(?:maj|min|m|sus|add|dim|aug|\+|-)?[0-9]*(?:[0-9])?(?:[0-9])?(?:[0-9])?(?:[0-9])?$/i;
+        const pattern = /^[A-GH][#b]?(?:maj|min|m|sus|add|dim|aug)?(?:[0-9]*)(?:\+|-)?(?:[0-9]+)?$/i;
         if (!pattern.test(baseChord)) return false;
         
         return true;

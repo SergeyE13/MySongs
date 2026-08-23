@@ -11,37 +11,40 @@
 <div class="app">
     <div class="overlay" id="overlay"></div>
 
-   
     <!-- ====== САЙДБАР ====== -->
     <div class="sidebar" id="sidebar">
-		<div class="sidebar-header">
-			<h2>🎸 Песенник v1.2</h2>
-			<div class="header-buttons">
-				<button id="addSongBtn" class="icon-btn" title="Новая песня" style="background:#27ae60;display:none;">➕</button>
-				<button id="syncStatusBtn" class="icon-btn" title="Статус синхронизации" style="background:#8e44ad;display:none;">📊</button>
-				<button id="downloadZipBtn" class="icon-btn" title="Скачать всё ZIP" style="background:#2c5a74;display:none;">📦</button>
-				<button id="refreshCsvBtn" class="icon-btn" title="Обновить список песен">⟳</button>
-				<button id="converterIconBtn" class="icon-btn" title="Конвертер">🔄</button>
-			</div>
-		</div>	
-			
+        <div class="sidebar-header">
+            <h2>🎸 Песенник v1.3</h2>
+            <div class="header-buttons">
+                <button id="addSongBtn" class="icon-btn" title="Новая песня">➕</button>
+                <button id="syncStatusBtn" class="icon-btn" title="Статус синхронизации">📊</button>
+                <button id="downloadZipBtn" class="icon-btn" title="Скачать всё ZIP">📦</button>
+                <button id="refreshCsvBtn" class="icon-btn" title="Обновить список песен">⟳</button>
+                <button id="converterIconBtn" class="icon-btn" title="Конвертер">🔄</button>
+            </div>
+        </div>
+
         <div class="search-box">
             <input type="text" id="searchInput" placeholder="🔍 Поиск песен...">
         </div>
         <div class="song-list-container" id="songListContainer">
-            <div style="padding:20px; text-align:center;">Загрузка...</div>
+            <div class="loading-msg">Загрузка...</div>
         </div>
     </div>
 
     <!-- ====== ОСНОВНОЙ КОНТЕНТ ====== -->
     <div class="content">
         <div class="toolbar">
-            <button class="menu-toggle" id="menuToggleBtn">☰</button>
+            <button class="menu-toggle" id="menuToggleBtn" title="Меню">☰</button>
             <div class="controls">
-                <button id="transposeDownBtn">♭ -1</button>
+                <button id="transposeDownBtn" title="Понизить на полутон">♭ -1</button>
                 <span class="transpose-value" id="transposeAmount">0</span>
-                <button id="transposeUpBtn">♯ +1</button>
-                <button id="resetTransposeBtn" style="background:#6c757d;">⟳ Сброс</button>
+                <button id="transposeUpBtn" title="Повысить на полутон">♯ +1</button>
+                <button id="resetTransposeBtn" class="secondary-btn" title="Сбросить тональность">⟳ Сброс</button>
+                <button id="capoDisplay" class="capo-display" title="Каподастр"></button>
+                <button id="autoscrollToggleBtn" class="secondary-btn" title="Автоскролл">▶ Автоскролл</button>
+                <button id="verseNavUpBtn" class="secondary-btn" title="К предыдущему куплету">↑ Куплет</button>
+                <button id="verseNavDownBtn" class="secondary-btn" title="К следующему куплету">↓ Куплет</button>
             </div>
         </div>
         <div class="song-view" id="songView">
@@ -50,29 +53,18 @@
     </div>
 </div>
 
-<!-- ====== ОВЕРЛЕЙ ДЛЯ ВХОДА В АДМИНКУ ====== -->
-<div id="loginOverlay">
-    <div class="box">
-        <h2 style="margin:0 0 10px 0;">🔐 Вход в режим редактирования</h2>
-        <p style="color:#666;margin-bottom:10px;">Введите пароль для редактирования песен</p>
-        <input type="password" id="adminPasswordInput" placeholder="Пароль...">
-        <button id="adminPasswordSubmit">Войти</button>
-    </div>
-</div>
-
 <!-- ====== ПАНЕЛЬ РЕДАКТОРА ====== -->
 <div id="adminPanel">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-shrink:0;">
-        <h3 id="editSongTitle" style="margin:0;font-size:20px;">✏️ Редактирование</h3>
-        <button onclick="closeEditor()" style="padding:8px 16px;border:none;border-radius:40px;background:#95a5a6;color:white;font-size:16px;cursor:pointer;">✕ Закрыть</button>
+    <div class="admin-header">
+        <h3 id="editSongTitle">✏️ Редактирование</h3>
+        <button id="closeEditorBtn" class="admin-close-btn">✕ Закрыть</button>
     </div>
     <textarea id="editTextarea" spellcheck="false"></textarea>
     <div class="admin-buttons">
-        <button class="btn-cancel" onclick="closeEditor()">Отмена</button>
-        <button class="btn-save" onclick="saveEditedSong()">💾 Сохранить</button>
+        <button id="cancelEditBtn" class="btn-cancel">Отмена</button>
+        <button id="saveEditBtn" class="btn-save">💾 Сохранить</button>
     </div>
 </div>
-
 
 <!-- Подключаем JSZip для создания ZIP-архивов -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>

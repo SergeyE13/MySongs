@@ -1,4 +1,4 @@
-/* ====== аюгнбше ярхкх ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫ ====== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
 body {
@@ -15,7 +15,7 @@ body {
 }
 .app { display: flex; height: 100%; width: 100%; position: relative; overflow: hidden; }
 
-/* ====== яюидаюп ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫О©╫ ====== */
 .sidebar {
     width: 280px;
     background: #1e2a3e;
@@ -58,7 +58,7 @@ body {
 .icon-btn:hover { background: #3e5a6e; transform: scale(0.95); }
 .icon-btn:active { transform: scale(0.9); }
 
-/* ====== онхяй ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫ ====== */
 .search-box { 
     padding: 12px 16px; 
     background: #15232e; 
@@ -73,7 +73,7 @@ body {
 }
 .search-box input::placeholder { color: #8aa0b8; }
 
-/* ====== яохянй оеяем ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫ ====== */
 .song-list-container { 
     flex: 1; 
     overflow-y: auto; 
@@ -99,7 +99,7 @@ body {
     font-family: system-ui, sans-serif;
 }
 
-/* ====== нямнбмни йнмремр ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫О©╫О©╫ ====== */
 .content { 
     flex: 1; 
     display: flex; 
@@ -109,7 +109,7 @@ body {
     height: 100%;
 }
 
-/* ====== рскаюп ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫ ====== */
 .toolbar {
     background: white; 
     padding: 12px 20px; 
@@ -141,7 +141,7 @@ body {
 }
 .menu-toggle:active { transform: scale(0.95); }
 
-/* ====== нрнапюфемхе оеямх ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫ ====== */
 .song-view { 
     flex: 1; 
     overflow-y: auto; 
@@ -182,7 +182,7 @@ body {
     font-family: 'Courier New', 'Fira Code', 'Menlo', monospace;
 }
 
-/* ====== гюцнкнбнй оеямх ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫ ====== */
 .song-header {
     margin-bottom: 1.5rem;
     border-left: 4px solid #f1c40f;
@@ -253,7 +253,7 @@ body {
 .no-song-msg { text-align: center; margin-top: 80px; color: #7f8c8d; padding: 20px; font-size: 1rem; font-family: system-ui, sans-serif; }
 .error-msg { background: #f9e6e6; padding: 20px; border-radius: 16px; margin: 20px; color: #c0392b; font-family: system-ui, sans-serif; }
 
-/* ====== нбепкеи ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫О©╫ ====== */
 .overlay {
     display: none;
     position: fixed;
@@ -264,7 +264,7 @@ body {
 }
 .overlay.active { display: block; }
 
-/* ====== юдюорхб дкъ рекетнмю ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫ ====== */
 @media (max-width: 720px) {
     .sidebar {
         position: fixed;
@@ -302,7 +302,7 @@ body {
     }
 }
 
-/* ====== ярхкх педюйрнпю ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫ ====== */
 #adminPanel {
     display: none;
     position: fixed;
@@ -357,7 +357,7 @@ body {
 .btn-save { background: #2ecc71; color: white; }
 .btn-cancel { background: #e74c3c; color: white; }
 
-/* ====== ймнойю юдлхмйх ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫О©╫О©╫ ====== */
 .admin-toggle-btn {
     background: #f39c12 !important;
     color: white !important;
@@ -369,47 +369,10 @@ body {
     background: #219a52 !important;
 }
 
-/* ====== нбепкеи бундю ====== */
-#loginOverlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.6);
-    z-index: 999;
-    justify-content: center;
-    align-items: center;
-}
-#loginOverlay.active {
-    display: flex;
-}
-#loginOverlay .box {
-    background: white;
-    padding: 30px;
-    border-radius: 20px;
-    width: 90%;
-    max-width: 400px;
-}
-#loginOverlay input {
-    width: 100%;
-    padding: 14px;
-    font-size: 18px;
-    border: 2px solid #ddd;
-    border-radius: 12px;
-    margin: 10px 0;
-    box-sizing: border-box;
-}
-#loginOverlay button {
-    width: 100%;
-    padding: 14px;
-    font-size: 18px;
-    background: #3498db;
-    color: white;
-    border: none;
-    border-radius: 40px;
-    cursor: pointer;
-}
+/* ====== п·п▓п∙п═п⌡п∙п≥ п■п⌡п╞ п▓п╔п·п■п░ ====== */
+.loading-msg { padding: 20px; text-align: center; color: #aaa; }
 
-/* ====== ймнойю педюйрхпнбюмхъ ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫О©╫ ====== */
 #editCurrentSongBtn {
     background: #f39c12 !important;
     color: white !important;
@@ -418,11 +381,65 @@ body {
     background: #e67e22 !important;
 }
 
-/* ====== ймнойю мнбни оеямх ====== */
+/* ====== О©╫О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫ О©╫О©╫О©╫О©╫О©╫ ====== */
 .add-song-btn {
     background: #27ae60 !important;
     color: white !important;
 }
 .add-song-btn:hover {
     background: #219a52 !important;
+}
+
+/* ====== п п²п·п÷п п≤ п░п■п°п≤п²п п≤ ====== */
+#addSongBtn { background: #27ae60; }
+#syncStatusBtn { background: #8e44ad; }
+#downloadZipBtn { background: #2c5a74; }
+
+/* ====== п п²п·п÷п п≤ п╒пёп⌡п▒п░п═п░ ====== */
+.secondary-btn { background: #6c757d; }
+.secondary-btn:hover { background: #5a6268; }
+.capo-display {
+    background: #2e7d64;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 40px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-family: system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+}
+.capo-display:active { transform: scale(0.95); }
+
+/* ====== п╗п░п÷п п░ п═п∙п■п░п п╒п·п═п░ ====== */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+.admin-header h3 { margin: 0; font-size: 20px; }
+.admin-close-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 40px;
+    background: #95a5a6;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* ====== п÷п·п■п║п▓п∙п╒п п░ п╒п∙п пёп╘п∙п≥ п║п╒п═п·п п≤ п÷п═п≤ п░п▓п╒п·п║п п═п·п⌡п⌡п∙ ====== */
+.song-line.highlight {
+    background: #fff3cd;
+    border-radius: 8px;
+}
+@media (max-width: 720px) {
+    .song-line.highlight {
+        background: #fff3cd;
+        border-radius: 8px;
+    }
 }

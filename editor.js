@@ -86,58 +86,6 @@ function isTokenValid() {
     return GITHUB_TOKEN && GITHUB_TOKEN.startsWith('ghp_') && GITHUB_TOKEN.length > 20;
 }
 
-// ====== ПРОВЕРКА СИНХРОНИЗАЦИИ ======
-async function checkAndClearLocalIfSynced(songId, content) {
-    if (!isTokenValid()) return false;
-    
-    const song = songsList.find(s => s.id === songId);
-    if (!song) return false;
-    
-    try {
-        const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
-        const response = await fetch(url, {
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-        });
-        if (!response.ok) return false;
-        
-        const freshText = await response.text();
-        
-        if (freshText === content) {
-            delete editedSongs[songId];
-            saveEditedSongs();
-            
-            const originalKey = songId + '_original';
-            editedSongs[originalKey] = freshText;
-            saveEditedSongs();
-            
-            const searchInput = document.getElementById('searchInput');
-            const filterText = searchInput ? searchInput.value : '';
-            renderSongList(filterText);
-            
-            if (currentSongId === songId) {
-                currentRawOriginal = freshText;
-                updateSongDisplay();
-            }
-            
-            console.log(`✅ Песня "${song.title}" синхронизирована с GitHub, пометка удалена`);
-            return true;
-        } else {
-            console.log(`🔄 Версии не совпадают (GitHub задерживает обновление), повторная проверка через 3 сек...`);
-            setTimeout(async () => {
-                await checkAndClearLocalIfSynced(songId, content);
-            }, 3000);
-            return false;
-        }
-    } catch (e) {
-        console.warn('⚠️ Ошибка проверки синхронизации:', e);
-        setTimeout(async () => {
-            await checkAndClearLocalIfSynced(songId, content);
-        }, 5000);
-        return false;
-    }
-}
-
 // ====== ОБНОВЛЕНИЕ ЦВЕТА КНОПКИ "РЕДАКТОР" ======
 function updateEditorButtonColor() {
     const btn = document.getElementById('editorToggleBtn');
@@ -150,6 +98,7 @@ function updateEditorButtonColor() {
         btn.style.background = '#f39c12';
         btn.textContent = '✏️ Редактор (токен)';
     }
+    showSidebarButtons();
 }
 
 // ====== КНОПКА "РЕДАКТОР" ======
@@ -171,13 +120,14 @@ function addEditorButton() {
 
 // ====== ПОКАЗАТЬ КНОПКИ В САЙДБАРЕ ======
 function showSidebarButtons() {
+    const show = isTokenValid();
     const addBtn = document.getElementById('addSongBtn');
     const statusBtn = document.getElementById('syncStatusBtn');
     const zipBtn = document.getElementById('downloadZipBtn');
     
-    if (addBtn) addBtn.style.display = 'flex';
-    if (statusBtn) statusBtn.style.display = 'flex';
-    if (zipBtn) zipBtn.style.display = 'flex';
+    if (addBtn) addBtn.style.display = show ? 'flex' : 'none';
+    if (statusBtn) statusBtn.style.display = show ? 'flex' : 'none';
+    if (zipBtn) zipBtn.style.display = show ? 'flex' : 'none';
 }
 
 // ====== ОТКРЫТЬ ПАНЕЛЬ РЕДАКТОРА ======
@@ -300,7 +250,7 @@ async function saveEditedSong() {
             try {
                 await saveFileToGitHub(`songs/${song.fileName}`, content, `Обновление ${song.fileName}`);
                 console.log(`✅ Песня "${song.title}" отправлена на GitHub`);
-                await checkAndClearLocalIfSynced(editingSongId, content);
+                await checkForUpdates(editingSongId);
             } catch (e) {
                 console.warn(`⚠️ Не удалось отправить "${song.title}" на GitHub:`, e.message);
             }
@@ -360,7 +310,7 @@ async function createNewSong() {
                 const csvLine = `"${artist}","${title}","${fileName}"\n`;
                 await appendToCSV(csvLine);
                 console.log(`✅ Новая песня "${title}" создана на GitHub`);
-                await checkAndClearLocalIfSynced(newSong.id, template);
+                await checkForUpdates(newSong.id);
             } catch (e) {
                 console.warn(`⚠️ Не удалось создать "${title}" на GitHub:`, e.message);
             }
@@ -500,6 +450,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addSongBtn').addEventListener('click', createNewSong);
     document.getElementById('syncStatusBtn').addEventListener('click', showSyncStatus);
     document.getElementById('downloadZipBtn').addEventListener('click', downloadChangedSongsZip);
+    document.getElementById('closeEditorBtn').addEventListener('click', closeEditor);
+    document.getElementById('cancelEditBtn').addEventListener('click', closeEditor);
+    document.getElementById('saveEditBtn').addEventListener('click', saveEditedSong);
     
     showSidebarButtons();
     
