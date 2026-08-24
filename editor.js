@@ -339,7 +339,7 @@ async function appendToCSV(line) {
             headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
         });
         const data = await res.json();
-        currentContent = atob(data.content);
+        currentContent = decodeURIComponent(escape(atob(data.content)));
     }
     const newContent = currentContent + line;
     await saveFileToGitHub(path, newContent, 'Обновление списка песен');
