@@ -187,6 +187,15 @@ async function loadSongWithEdits(songId) {
     const song = songsList.find(s => s.id === songId);
     if (!song) return;
     
+    // Если есть локальная версия — показываем её сразу, без запроса к GitHub
+    if (editedSongs[songId]) {
+        currentRawOriginal = editedSongs[songId];
+        currentSongId = songId;
+        transposeShift = songTransposes[songId] || 0;
+        updateSongDisplay();
+        return;
+    }
+    
     try {
         const url = `songs/${encodeURIComponent(song.fileName)}?t=${Date.now()}`;
         const response = await fetch(url, {
