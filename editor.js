@@ -281,7 +281,7 @@ async function createNewSong() {
     const template = `[Куплет 1]\n\n[Am]Текст песни...\n\n[Припев]\n\n[Am]Текст припева...`;
 
     const newSong = {
-        id: `song_${songsList.length}`,
+        id: `song_${fileName}`,
         title: title,
         artist: artist,
         fileName: fileName,

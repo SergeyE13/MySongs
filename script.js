@@ -382,6 +382,69 @@ async function loadSongById(id, saveToStorage = true, forceRefresh = false) {
     }
 }
 
+// ====== МИГРАЦИЯ СТАРЫХ ID (song_0 → song_имя_файла) ======
+function migrateLegacyIds() {
+    const legacyToNew = {};
+    songsList.forEach((song, idx) => {
+        legacyToNew[`song_${idx}`] = song.id;
+    });
+    let changed = false;
+
+    try {
+        const raw = localStorage.getItem('edited_songs');
+        if (raw) {
+            const edited = JSON.parse(raw);
+            const migrated = {};
+            for (const key of Object.keys(edited)) {
+                const isOriginal = key.endsWith('_original');
+                const baseKey = isOriginal ? key.slice(0, -'_original'.length) : key;
+                const newId = legacyToNew[baseKey];
+                if (newId && newId !== baseKey) {
+                    migrated[isOriginal ? newId + '_original' : newId] = edited[key];
+                    changed = true;
+                } else {
+                    migrated[key] = edited[key];
+                }
+            }
+            if (changed) {
+                localStorage.setItem('edited_songs', JSON.stringify(migrated));
+                if (typeof editedSongs === 'object' && editedSongs !== null) editedSongs = migrated;
+            }
+        }
+    } catch (e) {
+        debugLog(`⚠️ Ошибка миграции правок: ${e.message}`);
+    }
+
+    try {
+        const rawT = localStorage.getItem(STORAGE_TRANSPOSES);
+        if (rawT) {
+            const transposes = JSON.parse(rawT);
+            const migratedT = {};
+            let changedT = false;
+            for (const key of Object.keys(transposes)) {
+                const newId = legacyToNew[key];
+                if (newId && newId !== key) {
+                    migratedT[newId] = transposes[key];
+                    changedT = true;
+                } else {
+                    migratedT[key] = transposes[key];
+                }
+            }
+            if (changedT) {
+                localStorage.setItem(STORAGE_TRANSPOSES, JSON.stringify(migratedT));
+                songTransposes = migratedT;
+            }
+        }
+    } catch (e) {
+        debugLog(`⚠️ Ошибка миграции транспонирования: ${e.message}`);
+    }
+
+    const lastSong = localStorage.getItem(STORAGE_LAST_SONG);
+    if (lastSong && legacyToNew[lastSong] && legacyToNew[lastSong] !== lastSong) {
+        localStorage.setItem(STORAGE_LAST_SONG, legacyToNew[lastSong]);
+    }
+}
+
 // ====== ЗАГРУЗКА СПИСКА ПЕСЕН ======
 async function loadSongsFromCSV(forceRefresh = false) {
     try {
@@ -398,14 +461,16 @@ async function loadSongsFromCSV(forceRefresh = false) {
         const songs = parseCSV(csvText);
         songs.sort((a, b) => a.title.localeCompare(b.title, 'ru'));
         songsList = songs.map((song, idx) => ({ 
-            id: `song_${idx}`, 
+            id: `song_${song.fileName}`, 
             title: song.title, 
             artist: song.artist, 
             fileName: song.fileName,
-            originUrl: song.originUrl || null
+            originUrl: song.originUrl || null,
+            sortIndex: idx
         }));
         
         debugLog(`✅ Загружено песен: ${songsList.length}`);
+        migrateLegacyIds();
         renderSongList();
         
         const lastSongId = localStorage.getItem(STORAGE_LAST_SONG);
