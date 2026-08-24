@@ -126,12 +126,3 @@ MIT License — свободное использование для личны�
 
 🙏 Благодарности
 Спасибо всем, кто помогает с исправлением аккордов и текстов песен!
-
-В начало README.md можно добавить красивые бейджи:
-
-```markdown
-![Версия](https://img.shields.io/badge/версия-2.0-blue)
-![Статус](https://img.shields.io/badge/статус-работает-green)
-![Песен](https://img.shields.io/badge/песен-44-orange)
-![Лицензия](https://img.shields.io/badge/лицензия-MIT-blue)
-
