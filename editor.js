@@ -272,7 +272,7 @@ async function createNewSong() {
     const artist = prompt('🎤 Введите исполнителя:');
     if (!artist) return;
 
-    const fileName = `${artist} - ${title}.txt`.replace(/[^а-яА-Яa-zA-Z0-9 \-]/g, '');
+    const fileName = `${artist} - ${title}.txt`.replace(/[^а-яА-Яa-zA-Z0-9 \.\-]/g, '');
     if (!fileName) {
         alert('❌ Некорректное имя файла');
         return;
@@ -322,7 +322,7 @@ async function createNewSong() {
 
 // ====== ОБНОВЛЕНИЕ CSV ======
 async function appendToCSV(line) {
-    const path = 'songs.csv';
+    const path = 'songs/songs.csv';
     const sha = await getFileSha(path);
     let currentContent = '';
     if (sha) {
