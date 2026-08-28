@@ -316,7 +316,7 @@ async function createNewSong() {
         (async () => {
             try {
                 await saveFileToGitHub(`songs/${fileName}`, template, `Добавлена песня: ${fileName}`);
-                const csvLine = `"${artist}","${title}","${fileName}"\n`;
+                const csvLine = `${csvField(artist)},${csvField(title)},${csvField(fileName)}\n`;
                 await appendToCSV(csvLine);
                 console.log(`✅ Новая песня "${title}" создана на GitHub`);
                 await checkForUpdates(newSong.id);
@@ -327,6 +327,11 @@ async function createNewSong() {
     }
     
     openEditorPanel();
+}
+
+// ====== ФОРМАТИРОВАНИЕ ПОЛЯ CSV ======
+function csvField(value) {
+    return value.includes(',') ? `"${value}"` : value;
 }
 
 // ====== ОБНОВЛЕНИЕ CSV ======
